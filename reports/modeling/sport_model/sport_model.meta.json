@@ -1,0 +1,52 @@
+{
+  "model_name": "sport_gradient_boosting",
+  "algorithm": "HistGradientBoostingClassifier",
+  "target": [
+    "H",
+    "D",
+    "A"
+  ],
+  "training_rows": 12533,
+  "trained_seasons": [
+    "1819",
+    "1920",
+    "2021",
+    "2122",
+    "2223",
+    "2324",
+    "2425"
+  ],
+  "calibration_season": "2425",
+  "sport_features": [
+    "home_elo",
+    "away_elo",
+    "elo_difference",
+    "elo_expected_home",
+    "home_matches_played",
+    "away_matches_played",
+    "home_rest_days",
+    "away_rest_days",
+    "home_points_5",
+    "home_goals_for_5",
+    "home_goals_against_5",
+    "home_opponent_elo_5",
+    "away_points_5",
+    "away_goals_for_5",
+    "away_goals_against_5",
+    "away_opponent_elo_5",
+    "home_points_10",
+    "home_goals_for_10",
+    "home_goals_against_10",
+    "home_opponent_elo_10",
+    "away_points_10",
+    "away_goals_for_10",
+    "away_goals_against_10",
+    "away_opponent_elo_10"
+  ],
+  "excluded_inputs": [
+    "odds",
+    "market probabilities",
+    "final targets"
+  ],
+  "training_error": null
+}

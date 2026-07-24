@@ -1,0 +1,8 @@
+{
+  "matches": 12532,
+  "accuracy": 0.5383019470156399,
+  "log_loss": 0.9679787236006461,
+  "brier_score": 0.5750046570401698,
+  "average_margin": 0.02955005747449417,
+  "expected_calibration_error": 0.0066140945131145075
+}
