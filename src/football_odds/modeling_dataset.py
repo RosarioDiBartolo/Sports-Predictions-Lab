@@ -1,0 +1,415 @@
+from __future__ import annotations
+
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
+
+import numpy as np
+import pandas as pd
+
+from .config import ModelingConfig
+from .database import ResearchDatabase
+from .elo import EloRatings, EloSettings
+
+CANONICAL_MATCH_QUERY = """
+SELECT
+    m.match_id,
+    m.date,
+    m.season,
+    l.league_code AS league,
+    ht.team_name AS home_team,
+    at.team_name AS away_team,
+    r.home_goals,
+    r.away_goals,
+    r.result,
+    AVG(CASE WHEN o.selection = 'H' THEN o.implied_probability END)
+        AS market_home_probability,
+    AVG(CASE WHEN o.selection = 'D' THEN o.implied_probability END)
+        AS market_draw_probability,
+    AVG(CASE WHEN o.selection = 'A' THEN o.implied_probability END)
+        AS market_away_probability,
+    AVG(o.margin) AS market_margin
+FROM matches m
+JOIN leagues l ON l.league_id = m.league_id
+JOIN teams ht ON ht.team_id = m.home_team_id
+JOIN teams at ON at.team_id = m.away_team_id
+JOIN match_results r ON r.match_id = m.match_id
+LEFT JOIN odds o
+    ON o.match_id = m.match_id
+    AND o.market = '1X2'
+    AND o.opening_or_closing = 'closing'
+GROUP BY
+    m.match_id, m.date, m.season, l.league_code,
+    ht.team_name, at.team_name,
+    r.home_goals, r.away_goals, r.result
+ORDER BY m.date, l.league_code, m.match_id
+"""
+
+
+def load_canonical_matches(
+    database: ResearchDatabase,
+    *,
+    leagues: tuple[str, ...] | None = None,
+    seasons: tuple[str, ...] | None = None,
+) -> pd.DataFrame:
+    """Read the provider-neutral match view used by every downstream stage."""
+    database.initialize()
+    with database.connect() as connection:
+        frame = pd.read_sql_query(
+            CANONICAL_MATCH_QUERY, connection, parse_dates=["date"]
+        )
+    if leagues:
+        frame = frame.loc[frame["league"].isin(leagues)]
+    if seasons:
+        frame = frame.loc[frame["season"].astype(str).isin(seasons)]
+    valid = frame["result"].isin(("H", "D", "A")) & frame[
+        ["home_goals", "away_goals"]
+    ].notna().all(axis=1)
+    frame = frame.loc[valid].copy()
+    frame["home_goals"] = frame["home_goals"].astype(int)
+    frame["away_goals"] = frame["away_goals"].astype(int)
+    return frame.reset_index(drop=True)
+
+
+def normalize_team_name(name: object, aliases: dict[str, str] | None = None) -> str:
+    """Normalize whitespace and apply an optional provider alias map."""
+    normalized = " ".join(str(name).strip().split())
+    return (aliases or {}).get(normalized, normalized)
+
+
+def prepare_modeling_matches(
+    frame: pd.DataFrame,
+    *,
+    aliases: dict[str, str] | None = None,
+) -> pd.DataFrame:
+    """Validate and chronologically order one provider-neutral match table."""
+    required = {
+        "Date",
+        "Season",
+        "League",
+        "HomeTeam",
+        "AwayTeam",
+        "FTHG",
+        "FTAG",
+        "FTR",
+    }
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"Colonne modellistiche mancanti: {sorted(missing)}")
+    optional_odds = [
+        column for column in ("AvgCH", "AvgCD", "AvgCA") if column in frame.columns
+    ]
+    data = frame[list(required) + optional_odds].copy()
+    data["date"] = pd.to_datetime(data["Date"], dayfirst=True, errors="coerce")
+    data["home_team"] = data["HomeTeam"].map(
+        lambda value: normalize_team_name(value, aliases)
+    )
+    data["away_team"] = data["AwayTeam"].map(
+        lambda value: normalize_team_name(value, aliases)
+    )
+    data["home_goals"] = pd.to_numeric(data["FTHG"], errors="coerce")
+    data["away_goals"] = pd.to_numeric(data["FTAG"], errors="coerce")
+    if len(optional_odds) == 3:
+        closing = data[optional_odds].apply(pd.to_numeric, errors="coerce")
+        inverse = 1.0 / closing
+        total = inverse.sum(axis=1)
+        for source, target in zip(
+            optional_odds,
+            (
+                "market_home_probability",
+                "market_draw_probability",
+                "market_away_probability",
+            ),
+            strict=True,
+        ):
+            data[target] = inverse[source] / total
+    valid = (
+        data["date"].notna()
+        & data["FTR"].isin(("H", "D", "A"))
+        & data[["home_goals", "away_goals"]].notna().all(axis=1)
+        & data["home_team"].ne(data["away_team"])
+    )
+    data = data.loc[valid].rename(
+        columns={"Season": "season", "League": "league", "FTR": "result"}
+    )
+    data["home_goals"] = data["home_goals"].astype(int)
+    data["away_goals"] = data["away_goals"].astype(int)
+    data = data.drop(
+        columns=["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", *optional_odds]
+    )
+    data["match_id"] = (
+        data["league"].astype(str)
+        + "|"
+        + data["season"].astype(str)
+        + "|"
+        + data["date"].dt.strftime("%Y-%m-%d")
+        + "|"
+        + data["home_team"]
+        + "|"
+        + data["away_team"]
+    )
+    data = data.drop_duplicates("match_id")
+    return data.sort_values(["date", "league", "match_id"]).reset_index(drop=True)
+
+
+def prepare_future_fixtures(
+    frame: pd.DataFrame,
+    *,
+    aliases: dict[str, str] | None = None,
+) -> pd.DataFrame:
+    """Validate the target-free canonical fixture contract."""
+    required = {"date", "season", "league", "home_team", "away_team"}
+    missing = required.difference(frame.columns)
+    if missing:
+        raise ValueError(f"Colonne fixture mancanti: {sorted(missing)}")
+    target_columns = {"result", "home_goals", "away_goals"}.intersection(
+        frame.columns
+    )
+    if target_columns and frame[list(target_columns)].notna().any().any():
+        raise ValueError("Le fixture future non devono contenere target osservati.")
+    columns = [*required]
+    if "match_id" in frame.columns:
+        columns.append("match_id")
+    data = frame[columns].copy()
+    data["date"] = pd.to_datetime(data["date"], errors="coerce")
+    data["home_team"] = data["home_team"].map(
+        lambda value: normalize_team_name(value, aliases)
+    )
+    data["away_team"] = data["away_team"].map(
+        lambda value: normalize_team_name(value, aliases)
+    )
+    invalid = (
+        data["date"].isna()
+        | data["season"].isna()
+        | data["league"].isna()
+        | data["home_team"].eq("")
+        | data["away_team"].eq("")
+        | data["home_team"].eq(data["away_team"])
+    )
+    if invalid.any():
+        raise ValueError("Le fixture devono avere data, squadre e campionato validi.")
+    if "match_id" not in data:
+        data["match_id"] = (
+            "fixture|"
+            + data["league"].astype(str)
+            + "|"
+            + data["season"].astype(str)
+            + "|"
+            + data["date"].dt.strftime("%Y-%m-%dT%H:%M:%S")
+            + "|"
+            + data["home_team"]
+            + "|"
+            + data["away_team"]
+        )
+    if data["match_id"].isna().any() or data["match_id"].duplicated().any():
+        raise ValueError("Ogni fixture deve avere un match_id univoco.")
+    data["home_goals"] = np.nan
+    data["away_goals"] = np.nan
+    data["result"] = pd.NA
+    return data.sort_values(["date", "league", "match_id"]).reset_index(drop=True)
+
+
+@dataclass
+class _TeamHistory:
+    dates: list[pd.Timestamp] = field(default_factory=list)
+    goals_for: deque[int] = field(default_factory=deque)
+    goals_against: deque[int] = field(default_factory=deque)
+    points: deque[int] = field(default_factory=deque)
+    opponent_elo: deque[float] = field(default_factory=deque)
+
+
+def _rolling_mean(values: deque[int] | deque[float], window: int) -> float:
+    selected = list(values)[-window:]
+    return float(np.mean(selected)) if selected else float("nan")
+
+
+def build_prematch_features(
+    matches: pd.DataFrame,
+    config: ModelingConfig | None = None,
+    *,
+    include_unplayed: bool = False,
+) -> pd.DataFrame:
+    """Build features first, then update state only from completed matches."""
+    config = config or ModelingConfig()
+    config.validate()
+    settings = EloSettings(
+        initial_rating=config.elo_initial_rating,
+        k_factor=config.elo_k_factor,
+        home_advantage=config.elo_home_advantage,
+        season_regression=config.elo_season_regression,
+    )
+    engines: dict[str, EloRatings] = defaultdict(lambda: EloRatings(settings))
+    histories: dict[tuple[str, str], _TeamHistory] = defaultdict(_TeamHistory)
+    current_season: dict[str, str] = {}
+    output: list[dict[str, object]] = []
+
+    ordered = matches.sort_values(["date", "league", "match_id"])
+    for _, simultaneous in ordered.groupby("date", sort=False):
+        pending: list[
+            tuple[
+                pd.Series,
+                EloRatings,
+                str,
+                str,
+                pd.Timestamp,
+                _TeamHistory,
+                _TeamHistory,
+                float,
+                float,
+            ]
+        ] = []
+        for _, row in simultaneous.iterrows():
+            league = str(row["league"])
+            season = str(row["season"])
+            engine = engines[league]
+            if league in current_season and current_season[league] != season:
+                engine.regress_to_mean()
+            current_season[league] = season
+
+            home = str(row["home_team"])
+            away = str(row["away_team"])
+            date = pd.Timestamp(row["date"])
+            home_history = histories[(league, home)]
+            away_history = histories[(league, away)]
+            home_elo = engine.rating(home)
+            away_elo = engine.rating(away)
+            row_values = {str(key): value for key, value in row.to_dict().items()}
+            feature_row: dict[str, object] = {
+                **row_values,
+                "home_elo": home_elo,
+                "away_elo": away_elo,
+                "elo_difference": home_elo + settings.home_advantage - away_elo,
+                "elo_expected_home": engine.expected_home(home, away),
+                "home_matches_played": len(home_history.dates),
+                "away_matches_played": len(away_history.dates),
+                "home_rest_days": _rest_days(home_history, date),
+                "away_rest_days": _rest_days(away_history, date),
+            }
+            for window in config.rolling_windows:
+                for prefix, history in (
+                    ("home", home_history),
+                    ("away", away_history),
+                ):
+                    feature_row[f"{prefix}_points_{window}"] = _rolling_mean(
+                        history.points, window
+                    )
+                    feature_row[f"{prefix}_goals_for_{window}"] = _rolling_mean(
+                        history.goals_for, window
+                    )
+                    feature_row[f"{prefix}_goals_against_{window}"] = _rolling_mean(
+                        history.goals_against, window
+                    )
+                    feature_row[f"{prefix}_opponent_elo_{window}"] = _rolling_mean(
+                        history.opponent_elo, window
+                    )
+            result = row.get("result")
+            completed = bool(
+                pd.notna(result)
+                and result in ("H", "D", "A")
+                and pd.notna(row.get("home_goals"))
+                and pd.notna(row.get("away_goals"))
+            )
+            if completed or include_unplayed:
+                output.append(feature_row)
+            if completed:
+                pending.append(
+                    (
+                        row,
+                        engine,
+                        home,
+                        away,
+                        date,
+                        home_history,
+                        away_history,
+                        home_elo,
+                        away_elo,
+                    )
+                )
+
+        for (
+            row,
+            engine,
+            home,
+            away,
+            date,
+            home_history,
+            away_history,
+            home_elo,
+            away_elo,
+        ) in pending:
+            home_goals = int(row["home_goals"])
+            away_goals = int(row["away_goals"])
+            home_points = 3 if home_goals > away_goals else 0
+            away_points = 3 if away_goals > home_goals else 0
+            if home_goals == away_goals:
+                home_points = away_points = 1
+            _append_history(
+                home_history,
+                date,
+                home_goals,
+                away_goals,
+                home_points,
+                away_elo,
+                max(config.rolling_windows),
+            )
+            _append_history(
+                away_history,
+                date,
+                away_goals,
+                home_goals,
+                away_points,
+                home_elo,
+                max(config.rolling_windows),
+            )
+            engine.update(home, away, home_goals, away_goals)
+
+    return pd.DataFrame(output)
+
+
+def build_fixture_features(
+    completed_matches: pd.DataFrame,
+    fixtures: pd.DataFrame,
+    config: ModelingConfig | None = None,
+) -> pd.DataFrame:
+    """Replay completed history and return target-free pre-match fixture rows."""
+    config = config or ModelingConfig()
+    prepared = prepare_future_fixtures(fixtures, aliases=config.team_aliases)
+    fixture_ids = set(prepared["match_id"].astype(str))
+    if completed_matches["match_id"].astype(str).isin(fixture_ids).any():
+        raise ValueError("I match_id delle fixture devono essere nuovi.")
+    combined = pd.concat([completed_matches, prepared], ignore_index=True, sort=False)
+    features = build_prematch_features(combined, config, include_unplayed=True)
+    return (
+        features.loc[features["match_id"].astype(str).isin(fixture_ids)]
+        .sort_values(["date", "league", "match_id"])
+        .reset_index(drop=True)
+    )
+
+
+def _rest_days(history: _TeamHistory, date: pd.Timestamp) -> float:
+    if not history.dates:
+        return float("nan")
+    return float((date - history.dates[-1]).days)
+
+
+def _append_history(
+    history: _TeamHistory,
+    date: pd.Timestamp,
+    goals_for: int,
+    goals_against: int,
+    points: int,
+    opponent_elo: float,
+    maximum_window: int,
+) -> None:
+    history.dates.append(date)
+    history.goals_for.append(goals_for)
+    history.goals_against.append(goals_against)
+    history.points.append(points)
+    history.opponent_elo.append(opponent_elo)
+    for values in (
+        history.goals_for,
+        history.goals_against,
+        history.points,
+        history.opponent_elo,
+    ):
+        while len(values) > maximum_window:
+            values.popleft()
