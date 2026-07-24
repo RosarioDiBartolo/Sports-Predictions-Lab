@@ -7,7 +7,9 @@ from football_odds.predictive_model import (
     export_sport_model,
     fit_sport_model,
     load_sport_model,
+    paired_log_loss_bootstrap,
     predict_fixtures,
+    prediction_error_diagnostics,
     walk_forward_sport_model,
 )
 
@@ -34,6 +36,12 @@ def _feature_rows() -> pd.DataFrame:
                     "away_rest_days": np.nan if index == 0 else 6.0,
                     "home_points_5": float(index % 3),
                     "away_points_5": float((index + 1) % 3),
+                    "home_shots_on_target_for_5": float(index % 6),
+                    "away_shots_on_target_for_5": float((index + 2) % 6),
+                    "home_venue_points_5": float(index % 4),
+                    "away_venue_points_5": float((index + 1) % 4),
+                    "home_points_ewm": float(index % 3),
+                    "away_points_ewm": float((index + 1) % 3),
                     "market_home_probability": 0.95 if index % 2 else 0.02,
                     "market_draw_probability": 0.03,
                     "market_away_probability": 0.02 if index % 2 else 0.95,
@@ -94,11 +102,47 @@ def test_sport_model_requires_complete_outcomes():
         fit_sport_model(incomplete)
 
 
+def test_bootstrap_and_error_diagnostics_are_paired_and_deterministic():
+    features = _feature_rows()
+    _, predictions = walk_forward_sport_model(features)
+    reference = predictions.copy()
+    true_index = reference["result"].map({"H": 0, "D": 1, "A": 2}).to_numpy()
+    probabilities = np.full((len(reference), 3), 0.2)
+    probabilities[np.arange(len(reference)), true_index] = 0.6
+    reference[list(("probability_home", "probability_draw", "probability_away"))] = (
+        probabilities
+    )
+    candidate = reference.copy()
+    better = np.full((len(candidate), 3), 0.1)
+    better[np.arange(len(candidate)), true_index] = 0.8
+    candidate[
+        list(("probability_home", "probability_draw", "probability_away"))
+    ] = better
+    evidence = paired_log_loss_bootstrap(candidate, reference, samples=200)
+    assert evidence["verdict"] == "candidate_better"
+    assert evidence["ci_high"] < 0
+    assert paired_log_loss_bootstrap(candidate, reference, samples=200) == evidence
+    diagnostics = prediction_error_diagnostics(candidate, features)
+    assert set(diagnostics) == {"league", "result", "experience", "confidence"}
+    assert diagnostics["league"]["matches"].sum() == len(candidate)
+    with pytest.raises(ValueError, match="positivo"):
+        paired_log_loss_bootstrap(candidate, reference, samples=0)
+
+
 def test_export_load_and_stable_empty_artifacts(tmp_path):
     result = export_sport_model(_feature_rows(), tmp_path / "complete")
     assert result.outputs["model"].exists()
     assert result.outputs["report"].exists()
+    assert result.outputs["bootstrap"].exists()
+    assert result.outputs["reference_metrics"].exists()
+    assert result.outputs["error_by_league"].exists()
     assert "market_closing" in result.outputs["report"].read_text(encoding="utf-8")
+    assert "Verdetto di promozione" in result.outputs["report"].read_text(
+        encoding="utf-8"
+    )
+    assert "Segmenti più difficili" in result.outputs["report"].read_text(
+        encoding="utf-8"
+    )
     loaded = load_sport_model(result.outputs["model"])
     assert loaded.numeric_features == result.predictor.numeric_features
 

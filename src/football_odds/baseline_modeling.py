@@ -21,6 +21,12 @@ BASE_SPORT_FEATURES = (
     "away_matches_played",
     "home_rest_days",
     "away_rest_days",
+    "home_points_ewm",
+    "away_points_ewm",
+    "home_goal_difference_ewm",
+    "away_goal_difference_ewm",
+    "home_shots_on_target_difference_ewm",
+    "away_shots_on_target_difference_ewm",
 )
 
 
@@ -36,6 +42,30 @@ def _sport_feature_allowlist(columns: pd.Index) -> list[str]:
         "away_goals_against_",
         "home_opponent_elo_",
         "away_opponent_elo_",
+        "home_shots_for_",
+        "away_shots_for_",
+        "home_shots_against_",
+        "away_shots_against_",
+        "home_shots_on_target_for_",
+        "away_shots_on_target_for_",
+        "home_shots_on_target_against_",
+        "away_shots_on_target_against_",
+        "home_corners_for_",
+        "away_corners_for_",
+        "home_corners_against_",
+        "away_corners_against_",
+        "home_yellow_cards_",
+        "away_yellow_cards_",
+        "home_red_cards_",
+        "away_red_cards_",
+        "home_shot_conversion_",
+        "away_shot_conversion_",
+        "home_shot_accuracy_",
+        "away_shot_accuracy_",
+        "home_venue_points_",
+        "away_venue_points_",
+        "home_venue_goal_difference_",
+        "away_venue_goal_difference_",
     )
     for column in columns:
         if not isinstance(column, str):

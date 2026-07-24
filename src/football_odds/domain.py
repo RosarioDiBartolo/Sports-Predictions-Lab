@@ -20,6 +20,16 @@ class MatchRecord:
     home_goals: int | None = None
     away_goals: int | None = None
     result: str | None = None
+    home_shots: int | None = None
+    away_shots: int | None = None
+    home_shots_on_target: int | None = None
+    away_shots_on_target: int | None = None
+    home_corners: int | None = None
+    away_corners: int | None = None
+    home_yellow_cards: int | None = None
+    away_yellow_cards: int | None = None
+    home_red_cards: int | None = None
+    away_red_cards: int | None = None
 
 
 @dataclass(frozen=True)

@@ -254,6 +254,190 @@ def _weighted_summary(metrics: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def paired_log_loss_bootstrap(
+    candidate: pd.DataFrame,
+    reference: pd.DataFrame,
+    *,
+    samples: int = 2000,
+    seed: int = 42,
+) -> dict[str, float | int | str]:
+    """Estimate uncertainty of candidate-minus-reference paired log loss."""
+    if samples <= 0:
+        raise ValueError("samples deve essere positivo.")
+    keys = ["match_id", "season"]
+    probability_columns = list(PROBABILITY_COLUMNS)
+    left = candidate[keys + ["result", *probability_columns]].rename(
+        columns={column: f"{column}_candidate" for column in probability_columns}
+    )
+    right = reference[keys + probability_columns].rename(
+        columns={column: f"{column}_reference" for column in probability_columns}
+    )
+    paired = left.merge(right, on=keys, how="inner", validate="one_to_one")
+    if paired.empty:
+        return {
+            "matches": 0,
+            "mean_log_loss_difference": float("nan"),
+            "ci_low": float("nan"),
+            "ci_high": float("nan"),
+            "probability_candidate_better": float("nan"),
+            "verdict": "insufficient_data",
+        }
+    indices = paired["result"].map(
+        {outcome: index for index, outcome in enumerate(OUTCOMES)}
+    ).to_numpy()
+    candidate_probabilities = paired[
+        [f"{column}_candidate" for column in probability_columns]
+    ].to_numpy(dtype=float)
+    reference_probabilities = paired[
+        [f"{column}_reference" for column in probability_columns]
+    ].to_numpy(dtype=float)
+    row_indices = np.arange(len(paired))
+    candidate_loss = -np.log(
+        np.clip(candidate_probabilities[row_indices, indices], 1e-15, 1.0)
+    )
+    reference_loss = -np.log(
+        np.clip(reference_probabilities[row_indices, indices], 1e-15, 1.0)
+    )
+    differences = candidate_loss - reference_loss
+    rng = np.random.default_rng(seed)
+    bootstrap_means = np.empty(samples, dtype=float)
+    for sample in range(samples):
+        selection = rng.integers(0, len(differences), size=len(differences))
+        bootstrap_means[sample] = float(differences[selection].mean())
+    ci_low, ci_high = np.quantile(bootstrap_means, [0.025, 0.975])
+    return {
+        "matches": int(len(differences)),
+        "mean_log_loss_difference": float(differences.mean()),
+        "ci_low": float(ci_low),
+        "ci_high": float(ci_high),
+        "probability_candidate_better": float((bootstrap_means < 0).mean()),
+        "verdict": "candidate_better" if ci_high < 0 else "inconclusive",
+    }
+
+
+def _diagnostic_table(frame: pd.DataFrame, group_column: str) -> pd.DataFrame:
+    rows = []
+    for value, group in frame.groupby(group_column, observed=True, dropna=False):
+        probabilities = group[list(PROBABILITY_COLUMNS)].to_numpy(dtype=float)
+        rows.append(
+            {
+                group_column: str(value),
+                **_probability_metrics(group["result"], probabilities),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def prediction_error_diagnostics(
+    predictions: pd.DataFrame,
+    features: pd.DataFrame,
+) -> dict[str, pd.DataFrame]:
+    """Segment OOS errors by league, result, experience and confidence."""
+    if predictions.empty:
+        empty = pd.DataFrame(
+            columns=["segment", "matches", "log_loss", "brier", "accuracy", "ece"]
+        )
+        return {
+            "league": empty.copy(),
+            "result": empty.copy(),
+            "experience": empty.copy(),
+            "confidence": empty.copy(),
+        }
+    context_columns = [
+        column
+        for column in ("match_id", "home_matches_played", "away_matches_played")
+        if column in features
+    ]
+    context = features[context_columns].drop_duplicates("match_id")
+    data = predictions.merge(context, on="match_id", how="left")
+    played = data[["home_matches_played", "away_matches_played"]].min(axis=1)
+    data["experience"] = pd.cut(
+        played,
+        bins=[-np.inf, 4, 14, np.inf],
+        labels=["0-4", "5-14", "15+"],
+    )
+    confidence = data[list(PROBABILITY_COLUMNS)].max(axis=1)
+    data["confidence"] = pd.cut(
+        confidence,
+        bins=[0, 0.4, 0.5, 0.6, 0.7, 1.0],
+        include_lowest=True,
+    )
+    return {
+        "league": _diagnostic_table(data, "league"),
+        "result": _diagnostic_table(data, "result"),
+        "experience": _diagnostic_table(data, "experience"),
+        "confidence": _diagnostic_table(data, "confidence"),
+    }
+
+
+def _promotion_evidence(
+    candidate_summary: pd.DataFrame,
+    baseline_summary: pd.DataFrame,
+    candidate_metrics: pd.DataFrame,
+    baseline_metrics: pd.DataFrame,
+    bootstrap: dict[str, float | int | str],
+) -> dict[str, bool | int]:
+    if "model" not in candidate_summary or "model" not in baseline_summary:
+        return {
+            "promoted": False,
+            "season_wins": 0,
+            "required_season_wins": 0,
+            "significant_log_loss": False,
+            "brier_not_worse": False,
+            "ece_not_worse": False,
+        }
+    candidate_row = candidate_summary.loc[
+        candidate_summary["model"].eq(MODEL_NAME)
+    ]
+    baseline_row = baseline_summary.loc[
+        baseline_summary["model"].eq("sport_features")
+    ]
+    season_pairs = candidate_metrics.merge(
+        baseline_metrics.loc[baseline_metrics["model"].eq("sport_features")],
+        on="season",
+        suffixes=("_candidate", "_baseline"),
+    )
+    season_wins = int(
+        (
+            season_pairs["log_loss_candidate"]
+            < season_pairs["log_loss_baseline"]
+        ).sum()
+    )
+    required_wins = len(season_pairs) // 2 + 1
+    if candidate_row.empty or baseline_row.empty:
+        return {
+            "promoted": False,
+            "season_wins": season_wins,
+            "required_season_wins": required_wins,
+            "significant_log_loss": False,
+            "brier_not_worse": False,
+            "ece_not_worse": False,
+        }
+    candidate_values = candidate_row.iloc[0]
+    baseline_values = baseline_row.iloc[0]
+    significant = bool(
+        bootstrap.get("verdict") == "candidate_better"
+    )
+    brier_not_worse = bool(
+        candidate_values["brier"] <= baseline_values["brier"]
+    )
+    ece_not_worse = bool(candidate_values["ece"] <= baseline_values["ece"])
+    promoted = bool(
+        significant
+        and season_wins >= required_wins
+        and brier_not_worse
+        and ece_not_worse
+    )
+    return {
+        "promoted": promoted,
+        "season_wins": season_wins,
+        "required_season_wins": required_wins,
+        "significant_log_loss": significant,
+        "brier_not_worse": brier_not_worse,
+        "ece_not_worse": ece_not_worse,
+    }
+
+
 def export_sport_model(
     features: pd.DataFrame,
     destination: Path,
@@ -288,24 +472,70 @@ def export_sport_model(
             ]
         )
     metrics_path = destination / "sport_model_metrics_by_season.csv"
+    reference_metrics_path = (
+        destination / "sport_model_reference_metrics_by_season.csv"
+    )
     predictions_path = destination / "sport_model_predictions.csv"
     comparison_path = destination / "sport_model_comparison.csv"
+    bootstrap_path = destination / "sport_model_bootstrap.json"
     report_path = destination / "SPORT_MODEL_REPORT.md"
     metadata_path = destination / "sport_model.meta.json"
     model_path = destination / "sport_model.joblib"
     metrics.to_csv(metrics_path, index=False)
     predictions.to_csv(predictions_path, index=False)
 
-    baseline_metrics, _ = walk_forward_baselines(features)
+    baseline_metrics, baseline_predictions = walk_forward_baselines(features)
     references = baseline_metrics.loc[
         baseline_metrics["model"].isin(("sport_features", "market_closing"))
     ].copy()
+    references.to_csv(reference_metrics_path, index=False)
     comparison = pd.concat(
         [metrics.drop(columns=["calibrated"], errors="ignore"), references],
         ignore_index=True,
     )
     summary = _weighted_summary(comparison) if not comparison.empty else pd.DataFrame()
     summary.to_csv(comparison_path, index=False)
+    candidate_summary = (
+        _weighted_summary(metrics) if not metrics.empty else pd.DataFrame()
+    )
+    baseline_summary = (
+        _weighted_summary(baseline_metrics)
+        if not baseline_metrics.empty
+        else pd.DataFrame()
+    )
+    logistic_predictions = baseline_predictions.loc[
+        baseline_predictions["model"].eq("sport_features")
+    ]
+    bootstrap = paired_log_loss_bootstrap(
+        predictions,
+        logistic_predictions,
+    )
+    bootstrap_path.write_text(
+        json.dumps(bootstrap, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    diagnostics = prediction_error_diagnostics(predictions, features)
+    diagnostic_paths: dict[str, Path] = {}
+    for name, table in diagnostics.items():
+        path = destination / f"sport_model_error_by_{name}.csv"
+        table.to_csv(path, index=False)
+        diagnostic_paths[name] = path
+    promotion = _promotion_evidence(
+        candidate_summary,
+        baseline_summary,
+        metrics,
+        baseline_metrics,
+        bootstrap,
+    )
+    season_comparison = metrics.merge(
+        references.loc[references["model"].eq("sport_features")],
+        on="season",
+        suffixes=("_candidate", "_logistic"),
+    )
+    season_comparison["log_loss_delta"] = (
+        season_comparison["log_loss_candidate"]
+        - season_comparison["log_loss_logistic"]
+    )
 
     predictor: SportOnlyPredictor | None = None
     try:
@@ -323,6 +553,8 @@ def export_sport_model(
         "calibration_season": predictor.calibration_season if predictor else None,
         "sport_features": list(predictor.numeric_features) if predictor else [],
         "excluded_inputs": ["odds", "market probabilities", "final targets"],
+        "bootstrap": bootstrap,
+        "promotion": promotion,
         "training_error": training_error,
     }
     metadata_path.write_text(
@@ -350,6 +582,49 @@ def export_sport_model(
     report_lines.extend(
         [
             "",
+            "## Evidenza statistica",
+            "",
+            "Differenza Log Loss candidato − logistica: "
+            f"{bootstrap['mean_log_loss_difference']:.4f} "
+            f"(IC 95% {bootstrap['ci_low']:.4f}, {bootstrap['ci_high']:.4f}).",
+            f"Stagioni vinte: {promotion['season_wins']}/"
+            f"{len(metrics)}; richieste: {promotion['required_season_wins']}.",
+            "Verdetto di promozione: "
+            f"{'PROMOSSO' if promotion['promoted'] else 'NON PROMOSSO'}.",
+            "",
+            "## Stabilità stagionale",
+            "",
+            "| Stagione | Log Loss candidato | Log Loss logistica | Delta |",
+            "|---|---:|---:|---:|",
+        ]
+    )
+    for row in season_comparison.to_dict("records"):
+        report_lines.append(
+            f"| {row['season']} | {row['log_loss_candidate']:.4f} | "
+            f"{row['log_loss_logistic']:.4f} | "
+            f"{row['log_loss_delta']:+.4f} |"
+        )
+    report_lines.extend(
+        [
+            "",
+            "## Segmenti più difficili",
+            "",
+            "| Dimensione | Segmento | Match | Log Loss |",
+            "|---|---|---:|---:|",
+        ]
+    )
+    for name, table in diagnostics.items():
+        if table.empty:
+            continue
+        group_column = str(table.columns[0])
+        worst = table.sort_values("log_loss", ascending=False).iloc[0]
+        report_lines.append(
+            f"| {name} | {worst[group_column]} | "
+            f"{int(worst['matches'])} | {worst['log_loss']:.4f} |"
+        )
+    report_lines.extend(
+        [
+            "",
             "## Garanzie",
             "",
             "- Ogni stagione è prevista usando soltanto stagioni precedenti.",
@@ -365,10 +640,16 @@ def export_sport_model(
 
     outputs = {
         "metrics": metrics_path,
+        "reference_metrics": reference_metrics_path,
         "predictions": predictions_path,
         "comparison": comparison_path,
+        "bootstrap": bootstrap_path,
         "report": report_path,
         "metadata": metadata_path,
+        **{
+            f"error_by_{name}": path
+            for name, path in diagnostic_paths.items()
+        },
     }
     if predictor is not None:
         outputs["model"] = model_path

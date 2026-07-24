@@ -69,6 +69,16 @@ class FootballDataProvider:
                     home_goals=self._optional_int(row.get("FTHG")),
                     away_goals=self._optional_int(row.get("FTAG")),
                     result=self._optional_result(row.get("FTR")),
+                    home_shots=self._optional_int(row.get("HS")),
+                    away_shots=self._optional_int(row.get("AS")),
+                    home_shots_on_target=self._optional_int(row.get("HST")),
+                    away_shots_on_target=self._optional_int(row.get("AST")),
+                    home_corners=self._optional_int(row.get("HC")),
+                    away_corners=self._optional_int(row.get("AC")),
+                    home_yellow_cards=self._optional_int(row.get("HY")),
+                    away_yellow_cards=self._optional_int(row.get("AY")),
+                    home_red_cards=self._optional_int(row.get("HR")),
+                    away_red_cards=self._optional_int(row.get("AR")),
                 )
             )
         return records

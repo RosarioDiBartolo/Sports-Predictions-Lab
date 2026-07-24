@@ -42,7 +42,17 @@ CREATE TABLE IF NOT EXISTS match_results (
     match_id TEXT PRIMARY KEY REFERENCES matches(match_id) ON DELETE CASCADE,
     home_goals INTEGER,
     away_goals INTEGER,
-    result TEXT CHECK(result IN ('H', 'D', 'A') OR result IS NULL)
+    result TEXT CHECK(result IN ('H', 'D', 'A') OR result IS NULL),
+    home_shots INTEGER,
+    away_shots INTEGER,
+    home_shots_on_target INTEGER,
+    away_shots_on_target INTEGER,
+    home_corners INTEGER,
+    away_corners INTEGER,
+    home_yellow_cards INTEGER,
+    away_yellow_cards INTEGER,
+    home_red_cards INTEGER,
+    away_red_cards INTEGER
 );
 CREATE TABLE IF NOT EXISTS provider_match_mapping (
     provider_id INTEGER NOT NULL REFERENCES providers(provider_id),
@@ -209,6 +219,34 @@ class ResearchDatabase:
         with self.connect() as connection:
             connection.executescript(SCHEMA)
             self._migrate_odds_provider(connection)
+            self._migrate_match_performance(connection)
+
+    @staticmethod
+    def _migrate_match_performance(connection: sqlite3.Connection) -> None:
+        """Add nullable Football-Data performance facts to legacy databases."""
+        columns = {
+            str(row["name"])
+            for row in connection.execute(
+                "PRAGMA table_info(match_results)"
+            ).fetchall()
+        }
+        performance_columns = (
+            "home_shots",
+            "away_shots",
+            "home_shots_on_target",
+            "away_shots_on_target",
+            "home_corners",
+            "away_corners",
+            "home_yellow_cards",
+            "away_yellow_cards",
+            "home_red_cards",
+            "away_red_cards",
+        )
+        for column in performance_columns:
+            if column not in columns:
+                connection.execute(
+                    f"ALTER TABLE match_results ADD COLUMN {column} INTEGER"
+                )
 
     @staticmethod
     def _migrate_odds_provider(connection: sqlite3.Connection) -> None:
@@ -404,14 +442,46 @@ class ResearchDatabase:
                 )
             connection.execute(
                 """
-                INSERT INTO match_results (match_id, home_goals, away_goals, result)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO match_results (
+                    match_id, home_goals, away_goals, result,
+                    home_shots, away_shots,
+                    home_shots_on_target, away_shots_on_target,
+                    home_corners, away_corners,
+                    home_yellow_cards, away_yellow_cards,
+                    home_red_cards, away_red_cards
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(match_id) DO UPDATE SET
                     home_goals=excluded.home_goals,
                     away_goals=excluded.away_goals,
-                    result=excluded.result
+                    result=excluded.result,
+                    home_shots=excluded.home_shots,
+                    away_shots=excluded.away_shots,
+                    home_shots_on_target=excluded.home_shots_on_target,
+                    away_shots_on_target=excluded.away_shots_on_target,
+                    home_corners=excluded.home_corners,
+                    away_corners=excluded.away_corners,
+                    home_yellow_cards=excluded.home_yellow_cards,
+                    away_yellow_cards=excluded.away_yellow_cards,
+                    home_red_cards=excluded.home_red_cards,
+                    away_red_cards=excluded.away_red_cards
                 """,
-                (match_id, record.home_goals, record.away_goals, record.result),
+                (
+                    match_id,
+                    record.home_goals,
+                    record.away_goals,
+                    record.result,
+                    record.home_shots,
+                    record.away_shots,
+                    record.home_shots_on_target,
+                    record.away_shots_on_target,
+                    record.home_corners,
+                    record.away_corners,
+                    record.home_yellow_cards,
+                    record.away_yellow_cards,
+                    record.home_red_cards,
+                    record.away_red_cards,
+                ),
             )
             return match_id
 

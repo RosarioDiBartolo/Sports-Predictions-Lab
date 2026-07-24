@@ -57,10 +57,23 @@ def test_frequency_baseline_falls_back_for_unseen_league():
 
 
 def test_sport_feature_allowlist_rejects_unknown_numeric_columns():
-    columns = pd.Index(["elo_difference", "home_points_5", "future_final_score"])
+    columns = pd.Index(
+        [
+            "elo_difference",
+            "home_points_5",
+            "home_shots_on_target_for_5",
+            "home_venue_points_5",
+            "home_points_ewm",
+            "home_shots",
+            "future_final_score",
+        ]
+    )
     assert _sport_feature_allowlist(columns) == [
         "elo_difference",
+        "home_points_ewm",
         "home_points_5",
+        "home_shots_on_target_for_5",
+        "home_venue_points_5",
     ]
 
 

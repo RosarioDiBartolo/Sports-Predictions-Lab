@@ -1,0 +1,8 @@
+{
+  "matches": 10707,
+  "mean_log_loss_difference": -0.01619338304411949,
+  "ci_low": -0.023372666550670076,
+  "ci_high": -0.009051006878628995,
+  "probability_candidate_better": 1.0,
+  "verdict": "candidate_better"
+}

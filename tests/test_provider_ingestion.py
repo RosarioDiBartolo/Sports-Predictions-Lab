@@ -16,6 +16,16 @@ def sample_frame() -> pd.DataFrame:
             "FTHG": [2],
             "FTAG": [1],
             "FTR": ["H"],
+            "HS": [14],
+            "AS": [8],
+            "HST": [6],
+            "AST": [3],
+            "HC": [7],
+            "AC": [4],
+            "HY": [2],
+            "AY": [3],
+            "HR": [0],
+            "AR": [1],
             "B365H": [2.0],
             "B365D": [3.4],
             "B365A": [4.0],
@@ -33,6 +43,10 @@ def test_football_data_provider_extracts_match_and_two_snapshots():
     assert len(snapshots) == 2
     assert {snapshot.timing for snapshot in snapshots} == {"opening", "closing"}
     assert all(snapshot.bookmaker == "Bet365" for snapshot in snapshots)
+    match = provider.matches()[0]
+    assert match.home_shots == 14
+    assert match.away_shots_on_target == 3
+    assert match.away_red_cards == 1
 
 
 def test_provider_preserves_kickoff_time():

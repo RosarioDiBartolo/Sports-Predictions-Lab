@@ -10,6 +10,37 @@ from .config import ModelingConfig
 from .database import ResearchDatabase
 from .elo import EloRatings, EloSettings
 
+RAW_PERFORMANCE_COLUMNS = {
+    "HS": "home_shots",
+    "AS": "away_shots",
+    "HST": "home_shots_on_target",
+    "AST": "away_shots_on_target",
+    "HC": "home_corners",
+    "AC": "away_corners",
+    "HY": "home_yellow_cards",
+    "AY": "away_yellow_cards",
+    "HR": "home_red_cards",
+    "AR": "away_red_cards",
+}
+MATCH_PERFORMANCE_COLUMNS = tuple(RAW_PERFORMANCE_COLUMNS.values())
+ROLLING_PERFORMANCE_FIELDS = (
+    "shots_for",
+    "shots_against",
+    "shots_on_target_for",
+    "shots_on_target_against",
+    "corners_for",
+    "corners_against",
+    "yellow_cards",
+    "red_cards",
+    "shot_conversion",
+    "shot_accuracy",
+)
+HISTORY_PERFORMANCE_FIELDS = (
+    *ROLLING_PERFORMANCE_FIELDS,
+    "goal_difference",
+    "shots_on_target_difference",
+)
+
 CANONICAL_MATCH_QUERY = """
 SELECT
     m.match_id,
@@ -21,6 +52,16 @@ SELECT
     r.home_goals,
     r.away_goals,
     r.result,
+    r.home_shots,
+    r.away_shots,
+    r.home_shots_on_target,
+    r.away_shots_on_target,
+    r.home_corners,
+    r.away_corners,
+    r.home_yellow_cards,
+    r.away_yellow_cards,
+    r.home_red_cards,
+    r.away_red_cards,
     AVG(CASE WHEN o.selection = 'H' THEN o.implied_probability END)
         AS market_home_probability,
     AVG(CASE WHEN o.selection = 'D' THEN o.implied_probability END)
@@ -40,7 +81,12 @@ LEFT JOIN odds o
 GROUP BY
     m.match_id, m.date, m.season, l.league_code,
     ht.team_name, at.team_name,
-    r.home_goals, r.away_goals, r.result
+    r.home_goals, r.away_goals, r.result,
+    r.home_shots, r.away_shots,
+    r.home_shots_on_target, r.away_shots_on_target,
+    r.home_corners, r.away_corners,
+    r.home_yellow_cards, r.away_yellow_cards,
+    r.home_red_cards, r.away_red_cards
 ORDER BY m.date, l.league_code, m.match_id
 """
 
@@ -98,7 +144,10 @@ def prepare_modeling_matches(
     optional_odds = [
         column for column in ("AvgCH", "AvgCD", "AvgCA") if column in frame.columns
     ]
-    data = frame[list(required) + optional_odds].copy()
+    available_performance = [
+        column for column in RAW_PERFORMANCE_COLUMNS if column in frame.columns
+    ]
+    data = frame[list(required) + optional_odds + available_performance].copy()
     data["date"] = pd.to_datetime(data["Date"], dayfirst=True, errors="coerce")
     data["home_team"] = data["HomeTeam"].map(
         lambda value: normalize_team_name(value, aliases)
@@ -108,6 +157,10 @@ def prepare_modeling_matches(
     )
     data["home_goals"] = pd.to_numeric(data["FTHG"], errors="coerce")
     data["away_goals"] = pd.to_numeric(data["FTAG"], errors="coerce")
+    for source in available_performance:
+        data[RAW_PERFORMANCE_COLUMNS[source]] = pd.to_numeric(
+            data[source], errors="coerce"
+        )
     if len(optional_odds) == 3:
         closing = data[optional_odds].apply(pd.to_numeric, errors="coerce")
         inverse = 1.0 / closing
@@ -134,7 +187,15 @@ def prepare_modeling_matches(
     data["home_goals"] = data["home_goals"].astype(int)
     data["away_goals"] = data["away_goals"].astype(int)
     data = data.drop(
-        columns=["Date", "HomeTeam", "AwayTeam", "FTHG", "FTAG", *optional_odds]
+        columns=[
+            "Date",
+            "HomeTeam",
+            "AwayTeam",
+            "FTHG",
+            "FTAG",
+            *optional_odds,
+            *available_performance,
+        ]
     )
     data["match_id"] = (
         data["league"].astype(str)
@@ -211,15 +272,70 @@ def prepare_future_fixtures(
 @dataclass
 class _TeamHistory:
     dates: list[pd.Timestamp] = field(default_factory=list)
-    goals_for: deque[int] = field(default_factory=deque)
-    goals_against: deque[int] = field(default_factory=deque)
-    points: deque[int] = field(default_factory=deque)
+    goals_for: deque[float] = field(default_factory=deque)
+    goals_against: deque[float] = field(default_factory=deque)
+    points: deque[float] = field(default_factory=deque)
     opponent_elo: deque[float] = field(default_factory=deque)
+    performance: dict[str, deque[float]] = field(
+        default_factory=lambda: {
+            field_name: deque() for field_name in HISTORY_PERFORMANCE_FIELDS
+        }
+    )
 
 
-def _rolling_mean(values: deque[int] | deque[float], window: int) -> float:
-    selected = list(values)[-window:]
-    return float(np.mean(selected)) if selected else float("nan")
+def _rolling_mean(values: deque[float], window: int) -> float:
+    selected = np.asarray(list(values)[-window:], dtype=float)
+    finite = selected[np.isfinite(selected)]
+    return float(finite.mean()) if len(finite) else float("nan")
+
+
+def _weighted_mean(values: deque[float], alpha: float = 0.35) -> float:
+    selected = np.asarray(values, dtype=float)
+    finite = np.isfinite(selected)
+    if not finite.any():
+        return float("nan")
+    weights = np.power(1.0 - alpha, np.arange(len(selected))[::-1])
+    return float(np.average(selected[finite], weights=weights[finite]))
+
+
+def _numeric(row: pd.Series, column: str) -> float:
+    value = row.get(column)
+    return float(value) if pd.notna(value) else float("nan")
+
+
+def _ratio(numerator: float, denominator: float) -> float:
+    if not np.isfinite(numerator) or not np.isfinite(denominator) or denominator <= 0:
+        return float("nan")
+    return numerator / denominator
+
+
+def _performance_values(
+    row: pd.Series,
+    side: str,
+    goals_for: int,
+    goals_against: int,
+) -> dict[str, float]:
+    opponent = "away" if side == "home" else "home"
+    shots_for = _numeric(row, f"{side}_shots")
+    shots_against = _numeric(row, f"{opponent}_shots")
+    shots_on_target_for = _numeric(row, f"{side}_shots_on_target")
+    shots_on_target_against = _numeric(row, f"{opponent}_shots_on_target")
+    return {
+        "shots_for": shots_for,
+        "shots_against": shots_against,
+        "shots_on_target_for": shots_on_target_for,
+        "shots_on_target_against": shots_on_target_against,
+        "corners_for": _numeric(row, f"{side}_corners"),
+        "corners_against": _numeric(row, f"{opponent}_corners"),
+        "yellow_cards": _numeric(row, f"{side}_yellow_cards"),
+        "red_cards": _numeric(row, f"{side}_red_cards"),
+        "shot_conversion": _ratio(float(goals_for), shots_for),
+        "shot_accuracy": _ratio(shots_on_target_for, shots_for),
+        "goal_difference": float(goals_for - goals_against),
+        "shots_on_target_difference": (
+            shots_on_target_for - shots_on_target_against
+        ),
+    }
 
 
 def build_prematch_features(
@@ -239,6 +355,9 @@ def build_prematch_features(
     )
     engines: dict[str, EloRatings] = defaultdict(lambda: EloRatings(settings))
     histories: dict[tuple[str, str], _TeamHistory] = defaultdict(_TeamHistory)
+    venue_histories: dict[tuple[str, str, str], _TeamHistory] = defaultdict(
+        _TeamHistory
+    )
     current_season: dict[str, str] = {}
     output: list[dict[str, object]] = []
 
@@ -251,6 +370,8 @@ def build_prematch_features(
                 str,
                 str,
                 pd.Timestamp,
+                _TeamHistory,
+                _TeamHistory,
                 _TeamHistory,
                 _TeamHistory,
                 float,
@@ -270,9 +391,15 @@ def build_prematch_features(
             date = pd.Timestamp(row["date"])
             home_history = histories[(league, home)]
             away_history = histories[(league, away)]
+            home_venue_history = venue_histories[(league, home, "home")]
+            away_venue_history = venue_histories[(league, away, "away")]
             home_elo = engine.rating(home)
             away_elo = engine.rating(away)
-            row_values = {str(key): value for key, value in row.to_dict().items()}
+            row_values = {
+                str(key): value
+                for key, value in row.to_dict().items()
+                if key not in MATCH_PERFORMANCE_COLUMNS
+            }
             feature_row: dict[str, object] = {
                 **row_values,
                 "home_elo": home_elo,
@@ -283,6 +410,20 @@ def build_prematch_features(
                 "away_matches_played": len(away_history.dates),
                 "home_rest_days": _rest_days(home_history, date),
                 "away_rest_days": _rest_days(away_history, date),
+                "home_points_ewm": _weighted_mean(home_history.points),
+                "away_points_ewm": _weighted_mean(away_history.points),
+                "home_goal_difference_ewm": _weighted_mean(
+                    home_history.performance["goal_difference"]
+                ),
+                "away_goal_difference_ewm": _weighted_mean(
+                    away_history.performance["goal_difference"]
+                ),
+                "home_shots_on_target_difference_ewm": _weighted_mean(
+                    home_history.performance["shots_on_target_difference"]
+                ),
+                "away_shots_on_target_difference_ewm": _weighted_mean(
+                    away_history.performance["shots_on_target_difference"]
+                ),
             }
             for window in config.rolling_windows:
                 for prefix, history in (
@@ -301,6 +442,31 @@ def build_prematch_features(
                     feature_row[f"{prefix}_opponent_elo_{window}"] = _rolling_mean(
                         history.opponent_elo, window
                     )
+                    for field_name in ROLLING_PERFORMANCE_FIELDS:
+                        feature_row[
+                            f"{prefix}_{field_name}_{window}"
+                        ] = _rolling_mean(
+                            history.performance[field_name],
+                            window,
+                        )
+                feature_row[f"home_venue_points_{window}"] = _rolling_mean(
+                    home_venue_history.points, window
+                )
+                feature_row[
+                    f"home_venue_goal_difference_{window}"
+                ] = _rolling_mean(
+                    home_venue_history.performance["goal_difference"],
+                    window,
+                )
+                feature_row[f"away_venue_points_{window}"] = _rolling_mean(
+                    away_venue_history.points, window
+                )
+                feature_row[
+                    f"away_venue_goal_difference_{window}"
+                ] = _rolling_mean(
+                    away_venue_history.performance["goal_difference"],
+                    window,
+                )
             result = row.get("result")
             completed = bool(
                 pd.notna(result)
@@ -320,6 +486,8 @@ def build_prematch_features(
                         date,
                         home_history,
                         away_history,
+                        home_venue_history,
+                        away_venue_history,
                         home_elo,
                         away_elo,
                     )
@@ -333,6 +501,8 @@ def build_prematch_features(
             date,
             home_history,
             away_history,
+            home_venue_history,
+            away_venue_history,
             home_elo,
             away_elo,
         ) in pending:
@@ -342,6 +512,12 @@ def build_prematch_features(
             away_points = 3 if away_goals > home_goals else 0
             if home_goals == away_goals:
                 home_points = away_points = 1
+            home_performance = _performance_values(
+                row, "home", home_goals, away_goals
+            )
+            away_performance = _performance_values(
+                row, "away", away_goals, home_goals
+            )
             _append_history(
                 home_history,
                 date,
@@ -350,6 +526,7 @@ def build_prematch_features(
                 home_points,
                 away_elo,
                 max(config.rolling_windows),
+                home_performance,
             )
             _append_history(
                 away_history,
@@ -359,6 +536,27 @@ def build_prematch_features(
                 away_points,
                 home_elo,
                 max(config.rolling_windows),
+                away_performance,
+            )
+            _append_history(
+                home_venue_history,
+                date,
+                home_goals,
+                away_goals,
+                home_points,
+                away_elo,
+                max(config.rolling_windows),
+                home_performance,
+            )
+            _append_history(
+                away_venue_history,
+                date,
+                away_goals,
+                home_goals,
+                away_points,
+                home_elo,
+                max(config.rolling_windows),
+                away_performance,
             )
             engine.update(home, away, home_goals, away_goals)
 
@@ -399,17 +597,23 @@ def _append_history(
     points: int,
     opponent_elo: float,
     maximum_window: int,
+    performance: dict[str, float],
 ) -> None:
     history.dates.append(date)
     history.goals_for.append(goals_for)
     history.goals_against.append(goals_against)
     history.points.append(points)
     history.opponent_elo.append(opponent_elo)
+    for field_name, value in performance.items():
+        if field_name not in history.performance:
+            history.performance[field_name] = deque()
+        history.performance[field_name].append(value)
     for values in (
         history.goals_for,
         history.goals_against,
         history.points,
         history.opponent_elo,
+        *history.performance.values(),
     ):
         while len(values) > maximum_window:
             values.popleft()

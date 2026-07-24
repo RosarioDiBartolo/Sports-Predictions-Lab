@@ -26,6 +26,16 @@ def match_frame() -> pd.DataFrame:
             "FTHG": [2, 0, 1],
             "FTAG": [0, 1, 1],
             "FTR": ["H", "A", "D"],
+            "HS": [12, 9, 11],
+            "AS": [6, 10, 8],
+            "HST": [5, 3, 4],
+            "AST": [2, 5, 3],
+            "HC": [7, 4, 6],
+            "AC": [3, 8, 5],
+            "HY": [2, 1, 3],
+            "AY": [3, 2, 2],
+            "HR": [0, 0, 1],
+            "AR": [0, 1, 0],
         }
     )
 
@@ -49,6 +59,14 @@ def test_features_are_strictly_prematch():
     assert second["home_points_2"] == 0
     assert second["away_points_2"] == 3
     assert second["home_rest_days"] == 7
+    assert second["home_shots_for_2"] == 6
+    assert second["home_shots_against_2"] == 12
+    assert pd.isna(second["home_venue_points_2"])
+    third = features.iloc[2]
+    assert third["home_venue_points_2"] == 3
+    assert third["away_venue_points_2"] == 0
+    assert third["home_points_ewm"] > 0
+    assert "home_shots" not in features
 
 
 def test_adding_future_match_does_not_change_past_features():

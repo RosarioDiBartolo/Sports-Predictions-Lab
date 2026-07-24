@@ -43,6 +43,10 @@ odds-lab predict --fixtures upcoming_fixtures.csv
 
 The fixture CSV requires `date`, `season`, `league`, `home_team` and
 `away_team`; `match_id` is optional. The sport-only model never consumes odds.
+Its sports inputs include leakage-safe rolling shots, shots on target, corners,
+cards, finishing rates, venue splits and exponentially weighted recent form.
+The model report includes paired-bootstrap uncertainty and an explicit
+promotion gate against the logistic sports baseline.
 
 The execution manifest is written to `reports/pipeline_manifest.json`.
 
