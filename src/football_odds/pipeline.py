@@ -13,6 +13,7 @@ from .features import (
     build_prematch_features,
     load_canonical_matches,
 )
+from .hybrid import export_hybrid_model, load_hybrid_model
 from .market import (
     calculate_metrics,
     calibration_table,
@@ -216,12 +217,13 @@ def run_unified_pipeline(
         "features",
         "baselines",
         "model",
+        "hybrid",
     }
     unknown = requested.difference(allowed)
     if unknown:
         raise ValueError(f"Target pipeline sconosciuti: {sorted(unknown)}")
     if "all" in requested:
-        requested = allowed.difference({"all"})
+        requested = allowed.difference({"all", "hybrid"})
 
     completed: list[str] = []
     artifacts: dict[str, Path] = {}
@@ -379,7 +381,7 @@ def run_unified_pipeline(
         "canonical_hash": int(pd.util.hash_pandas_object(canonical, index=False).sum()),
     }
     features: pd.DataFrame | None = None
-    if requested.intersection({"features", "baselines", "model"}):
+    if requested.intersection({"features", "baselines", "model", "hybrid"}):
         cached_key = None
         if feature_manifest_path.exists():
             try:
@@ -474,6 +476,28 @@ def run_unified_pipeline(
             }
         )
 
+    if "hybrid" in requested:
+        if features is None:
+            raise RuntimeError("Il candidato ibrido richiede il dataset feature.")
+        hybrid = export_hybrid_model(
+            features,
+            config.report_dir / "hybrid_model",
+        )
+        completed.append("hybrid")
+        counts["hybrid_predictions"] = len(hybrid.predictions)
+        artifacts.update(
+            {f"hybrid_{key}": value for key, value in hybrid.outputs.items()}
+        )
+        stages.append(
+            {
+                "id": "08-hybrid",
+                "inputs": [str(feature_path)],
+                "outputs": [str(path) for path in hybrid.outputs.values()],
+                "rows": {"predictions": len(hybrid.predictions)},
+                "status": "completed",
+            }
+        )
+
     manifest_path = config.report_dir.parent / "pipeline_manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(
@@ -527,6 +551,26 @@ def run_sport_model_pipeline(
     }
     predictor = load_sport_model(outputs["model"]) if "model" in outputs else None
     return SportModelResult(metrics, predictions, outputs, predictor)
+
+
+def run_hybrid_model_pipeline(
+    config: ModelingConfig | None = None,
+) -> SportModelResult:
+    """Build and evaluate the hybrid candidate without changing production."""
+    config = config or ModelingConfig()
+    result = run_unified_pipeline(config, targets=("hybrid",))
+    destination = config.report_dir / "hybrid_model"
+    predictor = load_hybrid_model(destination / "hybrid_model.joblib")
+    return SportModelResult(
+        metrics=pd.read_csv(destination / "hybrid_metrics_by_season.csv"),
+        predictions=pd.read_csv(destination / "hybrid_predictions.csv"),
+        outputs={
+            key.removeprefix("hybrid_"): value
+            for key, value in result.artifacts.items()
+            if key.startswith("hybrid_")
+        },
+        predictor=predictor,
+    )
 
 
 def run_fixture_prediction(

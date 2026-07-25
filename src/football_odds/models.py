@@ -632,6 +632,9 @@ def prediction_error_diagnostics(
     ]
     context = features[context_columns].drop_duplicates("match_id")
     data = predictions.merge(context, on="match_id", how="left")
+    for column in ("home_matches_played", "away_matches_played"):
+        if column not in data:
+            data[column] = np.nan
     played = data[["home_matches_played", "away_matches_played"]].min(axis=1)
     data["experience"] = pd.cut(
         played,
@@ -658,6 +661,9 @@ def _promotion_evidence(
     candidate_metrics: pd.DataFrame,
     baseline_metrics: pd.DataFrame,
     bootstrap: dict[str, float | int | str],
+    *,
+    candidate_model: str = MODEL_NAME,
+    baseline_model: str = "sport_features",
 ) -> dict[str, bool | int]:
     if "model" not in candidate_summary or "model" not in baseline_summary:
         return {
@@ -668,10 +674,14 @@ def _promotion_evidence(
             "brier_not_worse": False,
             "ece_not_worse": False,
         }
-    candidate_row = candidate_summary.loc[candidate_summary["model"].eq(MODEL_NAME)]
-    baseline_row = baseline_summary.loc[baseline_summary["model"].eq("sport_features")]
+    candidate_row = candidate_summary.loc[
+        candidate_summary["model"].eq(candidate_model)
+    ]
+    baseline_row = baseline_summary.loc[
+        baseline_summary["model"].eq(baseline_model)
+    ]
     season_pairs = candidate_metrics.merge(
-        baseline_metrics.loc[baseline_metrics["model"].eq("sport_features")],
+        baseline_metrics.loc[baseline_metrics["model"].eq(baseline_model)],
         on="season",
         suffixes=("_candidate", "_baseline"),
     )

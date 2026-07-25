@@ -18,6 +18,7 @@ from .pipeline import (
     run_backfill_pipeline,
     run_baseline_pipeline,
     run_fixture_prediction,
+    run_hybrid_model_pipeline,
     run_modeling_pipeline,
     run_research_pipeline,
     run_sport_model_pipeline,
@@ -58,6 +59,14 @@ def build_parser() -> argparse.ArgumentParser:
     sport_model.add_argument("--seasons", nargs="+", default=list(DEFAULT_SEASONS))
     sport_model.add_argument("--windows", nargs="+", type=int, default=[5, 10])
     sport_model.add_argument("--project-dir", type=Path, default=Path.cwd())
+    hybrid_model = subparsers.add_parser(
+        "hybrid-model",
+        help="Valuta Dixon-Coles + gradient boosting contro il modello ufficiale.",
+    )
+    hybrid_model.add_argument("--leagues", nargs="+", default=list(DEFAULT_LEAGUES))
+    hybrid_model.add_argument("--seasons", nargs="+", default=list(DEFAULT_SEASONS))
+    hybrid_model.add_argument("--windows", nargs="+", type=int, default=[5, 10])
+    hybrid_model.add_argument("--project-dir", type=Path, default=Path.cwd())
     predict = subparsers.add_parser(
         "predict",
         help="Predice fixture future senza risultato usando il modello sport-only.",
@@ -95,6 +104,7 @@ def build_parser() -> argparse.ArgumentParser:
             "market",
             "features",
             "baselines",
+            "hybrid",
             "model",
         ),
     )
@@ -190,6 +200,29 @@ def main() -> None:
                         else None
                     ),
                     "report": str(result.outputs["report"]),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+    if args.command == "hybrid-model":
+        result = run_hybrid_model_pipeline(
+            ModelingConfig(
+                leagues=tuple(args.leagues),
+                seasons=tuple(args.seasons),
+                rolling_windows=tuple(args.windows),
+                project_dir=args.project_dir.resolve(),
+            )
+        )
+        metadata = json.loads(
+            result.outputs["metadata"].read_text(encoding="utf-8")
+        )
+        print(
+            json.dumps(
+                {
+                    "promoted": metadata["promotion"]["promoted"],
+                    "report": str(result.outputs["report"]),
+                    "official_model_unchanged": True,
                 },
                 indent=2,
                 ensure_ascii=False,
