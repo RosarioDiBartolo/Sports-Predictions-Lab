@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from football_odds.baseline_modeling import (
+from football_odds.models import (
     _league_frequencies,
     _sport_feature_allowlist,
     export_baseline_report,

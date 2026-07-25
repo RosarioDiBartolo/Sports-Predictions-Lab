@@ -1,5 +1,8 @@
+"""Leakage-safe Elo, rolling history and pre-match features."""
+
 from __future__ import annotations
 
+import math
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 
@@ -8,7 +11,67 @@ import pandas as pd
 
 from .config import ModelingConfig
 from .database import ResearchDatabase
-from .elo import EloRatings, EloSettings
+
+
+@dataclass(frozen=True)
+class EloSettings:
+    """Parameters controlling one Elo rating pool."""
+
+    initial_rating: float = 1500.0
+    k_factor: float = 20.0
+    home_advantage: float = 65.0
+    season_regression: float = 0.25
+
+
+class EloRatings:
+    """Stateful Elo engine whose values are read before each update."""
+
+    def __init__(self, settings: EloSettings | None = None) -> None:
+        self.settings = settings or EloSettings()
+        self._ratings: dict[str, float] = {}
+
+    def rating(self, team: str) -> float:
+        """Return a team's current rating, initializing it when unseen."""
+        return self._ratings.setdefault(team, self.settings.initial_rating)
+
+    def expected_home(self, home_team: str, away_team: str) -> float:
+        """Return expected home score after applying home advantage."""
+        difference = (
+            self.rating(home_team)
+            + self.settings.home_advantage
+            - self.rating(away_team)
+        )
+        return 1.0 / (1.0 + 10.0 ** (-difference / 400.0))
+
+    def update(
+        self,
+        home_team: str,
+        away_team: str,
+        home_goals: int,
+        away_goals: int,
+    ) -> tuple[float, float]:
+        """Update both ratings and return their new values."""
+        home_rating = self.rating(home_team)
+        away_rating = self.rating(away_team)
+        expected = self.expected_home(home_team, away_team)
+        actual = 1.0 if home_goals > away_goals else 0.0
+        if home_goals == away_goals:
+            actual = 0.5
+        goal_multiplier = 1.0 + math.log1p(abs(home_goals - away_goals))
+        change = self.settings.k_factor * goal_multiplier * (actual - expected)
+        self._ratings[home_team] = home_rating + change
+        self._ratings[away_team] = away_rating - change
+        return self._ratings[home_team], self._ratings[away_team]
+
+    def regress_to_mean(self) -> None:
+        """Shrink every known rating between seasons."""
+        weight = self.settings.season_regression
+        base = self.settings.initial_rating
+        self._ratings = {
+            team: (1.0 - weight) * rating + weight * base
+            for team, rating in self._ratings.items()
+        }
+
 
 RAW_PERFORMANCE_COLUMNS = {
     "HS": "home_shots",
@@ -222,9 +285,7 @@ def prepare_future_fixtures(
     missing = required.difference(frame.columns)
     if missing:
         raise ValueError(f"Colonne fixture mancanti: {sorted(missing)}")
-    target_columns = {"result", "home_goals", "away_goals"}.intersection(
-        frame.columns
-    )
+    target_columns = {"result", "home_goals", "away_goals"}.intersection(frame.columns)
     if target_columns and frame[list(target_columns)].notna().any().any():
         raise ValueError("Le fixture future non devono contenere target osservati.")
     columns = [*required]
@@ -332,9 +393,7 @@ def _performance_values(
         "shot_conversion": _ratio(float(goals_for), shots_for),
         "shot_accuracy": _ratio(shots_on_target_for, shots_for),
         "goal_difference": float(goals_for - goals_against),
-        "shots_on_target_difference": (
-            shots_on_target_for - shots_on_target_against
-        ),
+        "shots_on_target_difference": (shots_on_target_for - shots_on_target_against),
     }
 
 
@@ -443,27 +502,21 @@ def build_prematch_features(
                         history.opponent_elo, window
                     )
                     for field_name in ROLLING_PERFORMANCE_FIELDS:
-                        feature_row[
-                            f"{prefix}_{field_name}_{window}"
-                        ] = _rolling_mean(
+                        feature_row[f"{prefix}_{field_name}_{window}"] = _rolling_mean(
                             history.performance[field_name],
                             window,
                         )
                 feature_row[f"home_venue_points_{window}"] = _rolling_mean(
                     home_venue_history.points, window
                 )
-                feature_row[
-                    f"home_venue_goal_difference_{window}"
-                ] = _rolling_mean(
+                feature_row[f"home_venue_goal_difference_{window}"] = _rolling_mean(
                     home_venue_history.performance["goal_difference"],
                     window,
                 )
                 feature_row[f"away_venue_points_{window}"] = _rolling_mean(
                     away_venue_history.points, window
                 )
-                feature_row[
-                    f"away_venue_goal_difference_{window}"
-                ] = _rolling_mean(
+                feature_row[f"away_venue_goal_difference_{window}"] = _rolling_mean(
                     away_venue_history.performance["goal_difference"],
                     window,
                 )
@@ -512,12 +565,8 @@ def build_prematch_features(
             away_points = 3 if away_goals > home_goals else 0
             if home_goals == away_goals:
                 home_points = away_points = 1
-            home_performance = _performance_values(
-                row, "home", home_goals, away_goals
-            )
-            away_performance = _performance_values(
-                row, "away", away_goals, home_goals
-            )
+            home_performance = _performance_values(row, "home", home_goals, away_goals)
+            away_performance = _performance_values(row, "away", away_goals, home_goals)
             _append_history(
                 home_history,
                 date,

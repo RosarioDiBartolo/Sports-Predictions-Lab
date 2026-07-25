@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from football_odds.predictive_model import (
+from football_odds.models import (
     export_sport_model,
     fit_sport_model,
     load_sport_model,
@@ -115,9 +115,9 @@ def test_bootstrap_and_error_diagnostics_are_paired_and_deterministic():
     candidate = reference.copy()
     better = np.full((len(candidate), 3), 0.1)
     better[np.arange(len(candidate)), true_index] = 0.8
-    candidate[
-        list(("probability_home", "probability_draw", "probability_away"))
-    ] = better
+    candidate[list(("probability_home", "probability_draw", "probability_away"))] = (
+        better
+    )
     evidence = paired_log_loss_bootstrap(candidate, reference, samples=200)
     assert evidence["verdict"] == "candidate_better"
     assert evidence["ci_high"] < 0

@@ -3,8 +3,7 @@ import pytest
 
 from football_odds.config import ModelingConfig
 from football_odds.database import ResearchDatabase
-from football_odds.ingestion import IngestionPipeline
-from football_odds.modeling_dataset import (
+from football_odds.features import (
     build_fixture_features,
     build_prematch_features,
     load_canonical_matches,
@@ -12,7 +11,7 @@ from football_odds.modeling_dataset import (
     prepare_future_fixtures,
     prepare_modeling_matches,
 )
-from football_odds.providers.football_data import FootballDataProvider
+from football_odds.sources import FootballDataProvider, IngestionPipeline
 
 
 def match_frame() -> pd.DataFrame:

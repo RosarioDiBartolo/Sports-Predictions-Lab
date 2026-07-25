@@ -48,7 +48,7 @@ exclude = ["notebooks"]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/football_odds/reporting.py" = ["E501"]
+"src/football_odds/research.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

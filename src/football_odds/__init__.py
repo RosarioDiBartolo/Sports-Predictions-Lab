@@ -1,6 +1,7 @@
 """Strumenti per analizzare la calibrazione delle quote calcistiche."""
 
 from .config import AnalysisConfig, ModelingConfig
+from .models import SportModelResult, SportOnlyPredictor
 from .pipeline import (
     AnalysisResult,
     FixturePredictionResult,
@@ -12,7 +13,6 @@ from .pipeline import (
     run_research_pipeline,
     run_sport_model_pipeline,
 )
-from .predictive_model import SportModelResult, SportOnlyPredictor
 
 __all__ = [
     "AnalysisConfig",

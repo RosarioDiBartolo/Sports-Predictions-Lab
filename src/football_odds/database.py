@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from .domain import MatchRecord, OddsRecord
+from .sources import MatchRecord, OddsRecord
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -80,63 +80,6 @@ CREATE TABLE IF NOT EXISTS odds (
     )
 );
 
-CREATE TABLE IF NOT EXISTS players (
-    player_id INTEGER PRIMARY KEY, player_name TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS player_match_stats (
-    player_id INTEGER REFERENCES players(player_id),
-    match_id TEXT REFERENCES matches(match_id),
-    minutes REAL, goals REAL, assists REAL,
-    PRIMARY KEY(player_id, match_id)
-);
-CREATE TABLE IF NOT EXISTS lineups (
-    match_id TEXT REFERENCES matches(match_id),
-    player_id INTEGER REFERENCES players(player_id),
-    team_id INTEGER REFERENCES teams(team_id),
-    starter INTEGER, position TEXT,
-    PRIMARY KEY(match_id, player_id)
-);
-CREATE TABLE IF NOT EXISTS injuries (
-    injury_id INTEGER PRIMARY KEY, player_id INTEGER REFERENCES players(player_id),
-    start_date TEXT, end_date TEXT, description TEXT
-);
-CREATE TABLE IF NOT EXISTS transfers (
-    transfer_id INTEGER PRIMARY KEY, player_id INTEGER REFERENCES players(player_id),
-    from_team_id INTEGER REFERENCES teams(team_id),
-    to_team_id INTEGER REFERENCES teams(team_id), transfer_date TEXT, fee REAL
-);
-CREATE TABLE IF NOT EXISTS player_ratings (
-    player_id INTEGER REFERENCES players(player_id), rating_date TEXT,
-    rating REAL, source TEXT, PRIMARY KEY(player_id, rating_date, source)
-);
-CREATE TABLE IF NOT EXISTS team_ratings (
-    team_id INTEGER REFERENCES teams(team_id), rating_date TEXT,
-    rating REAL, source TEXT, PRIMARY KEY(team_id, rating_date, source)
-);
-CREATE TABLE IF NOT EXISTS elo_history (
-    team_id INTEGER REFERENCES teams(team_id), rating_date TEXT,
-    elo REAL, PRIMARY KEY(team_id, rating_date)
-);
-CREATE TABLE IF NOT EXISTS team_form (
-    team_id INTEGER REFERENCES teams(team_id), as_of_date TEXT,
-    window INTEGER, points REAL, PRIMARY KEY(team_id, as_of_date, window)
-);
-CREATE TABLE IF NOT EXISTS league_table_history (
-    league_id INTEGER REFERENCES leagues(league_id),
-    team_id INTEGER REFERENCES teams(team_id),
-    as_of_date TEXT, position INTEGER, points INTEGER,
-    PRIMARY KEY(league_id, team_id, as_of_date)
-);
-CREATE TABLE IF NOT EXISTS schedule (
-    match_id TEXT PRIMARY KEY REFERENCES matches(match_id), kickoff TEXT, venue TEXT
-);
-CREATE TABLE IF NOT EXISTS travel_distance (
-    match_id TEXT PRIMARY KEY REFERENCES matches(match_id), distance_km REAL
-);
-CREATE TABLE IF NOT EXISTS weather (
-    match_id TEXT PRIMARY KEY REFERENCES matches(match_id),
-    temperature_c REAL, precipitation_mm REAL, wind_kph REAL
-);
 CREATE TABLE IF NOT EXISTS team_venues (
     team_id INTEGER PRIMARY KEY REFERENCES teams(team_id),
     venue_name TEXT,
@@ -156,9 +99,6 @@ CREATE TABLE IF NOT EXISTS weather_observations (
     wind_kph REAL NOT NULL,
     source TEXT NOT NULL,
     fetched_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE IF NOT EXISTS referees (
-    referee_id INTEGER PRIMARY KEY, referee_name TEXT NOT NULL UNIQUE
 );
 CREATE INDEX IF NOT EXISTS idx_odds_analysis
 ON odds(bookmaker_id, market, opening_or_closing);
@@ -215,7 +155,7 @@ class ResearchDatabase:
             connection.close()
 
     def initialize(self) -> None:
-        """Create all current and future-ready tables idempotently."""
+        """Create only tables produced by a concrete pipeline stage."""
         with self.connect() as connection:
             connection.executescript(SCHEMA)
             self._migrate_odds_provider(connection)
@@ -226,9 +166,7 @@ class ResearchDatabase:
         """Add nullable Football-Data performance facts to legacy databases."""
         columns = {
             str(row["name"])
-            for row in connection.execute(
-                "PRAGMA table_info(match_results)"
-            ).fetchall()
+            for row in connection.execute("PRAGMA table_info(match_results)").fetchall()
         }
         performance_columns = (
             "home_shots",

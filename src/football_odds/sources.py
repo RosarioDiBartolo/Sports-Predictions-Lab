@@ -1,12 +1,127 @@
+"""Acquisition, provider normalization and canonical ingestion."""
+
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 from datetime import datetime
+from io import BytesIO
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal, Protocol
 
 import pandas as pd
+import requests
 
-from football_odds.config import BOOKMAKER_ODDS_COLUMNS
-from football_odds.domain import MatchRecord, OddsRecord
+from .config import BOOKMAKER_ODDS_COLUMNS, LEAGUES, AnalysisConfig
+
+if TYPE_CHECKING:
+    from .database import ResearchDatabase
+
+OddsTiming = Literal["opening", "closing", "snapshot"]
+
+
+@dataclass(frozen=True)
+class MatchRecord:
+    """Provider-neutral representation of one football match."""
+
+    provider_match_id: str
+    date: datetime
+    season: str
+    league_code: str
+    home_team: str
+    away_team: str
+    home_goals: int | None = None
+    away_goals: int | None = None
+    result: str | None = None
+    home_shots: int | None = None
+    away_shots: int | None = None
+    home_shots_on_target: int | None = None
+    away_shots_on_target: int | None = None
+    home_corners: int | None = None
+    away_corners: int | None = None
+    home_yellow_cards: int | None = None
+    away_yellow_cards: int | None = None
+    home_red_cards: int | None = None
+    away_red_cards: int | None = None
+
+
+@dataclass(frozen=True)
+class OddsRecord:
+    """One normalized 1-X-2 market snapshot."""
+
+    provider_match_id: str
+    bookmaker: str
+    market: str
+    odds: dict[str, float]
+    timestamp: datetime | None
+    timing: OddsTiming
+
+
+BASE_URL = "https://www.football-data.co.uk/mmz4281"
+
+
+def season_url(season: str, league: str) -> str:
+    return f"{BASE_URL}/{season}/{league}.csv"
+
+
+def download_season(
+    season: str,
+    league: str,
+    destination: Path,
+    *,
+    refresh: bool = False,
+    timeout: int = 30,
+) -> pd.DataFrame:
+    """Scarica una stagione oppure legge la copia locale già disponibile."""
+    if destination.exists() and not refresh:
+        return pd.read_csv(destination)
+
+    response = requests.get(
+        season_url(season, league),
+        timeout=timeout,
+        headers={"User-Agent": "football-odds-lab/0.1"},
+    )
+    response.raise_for_status()
+    frame = pd.read_csv(BytesIO(response.content))
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(destination, index=False)
+    return frame
+
+
+def load_all_seasons(config: AnalysisConfig, *, refresh: bool = False) -> pd.DataFrame:
+    config.validate()
+    config.ensure_directories()
+    frames: list[pd.DataFrame] = []
+
+    for season in config.seasons:
+        destination = config.raw_dir / f"{config.league}_{season}.csv"
+        frame = download_season(
+            season, config.league, destination, refresh=refresh
+        ).copy()
+        frame["Season"] = season
+        frame["League"] = config.league
+        frames.append(frame)
+
+    if not frames:
+        raise ValueError("Nessuna stagione da caricare.")
+    return pd.concat(frames, ignore_index=True, sort=False)
+
+
+class DataProvider(Protocol):
+    """Contract implemented by every external data source plugin."""
+
+    @property
+    def name(self) -> str:
+        """Stable provider name used by the mapping table."""
+        ...
+
+    def matches(self) -> list[MatchRecord]:
+        """Return validated, provider-neutral match records."""
+        ...
+
+    def odds(self) -> list[OddsRecord]:
+        """Return normalized market snapshots."""
+        ...
 
 
 class FootballDataProvider:
@@ -122,3 +237,46 @@ class FootballDataProvider:
                         )
                     )
         return records
+
+
+@dataclass(frozen=True)
+class IngestionSummary:
+    """Counts produced by one provider ingestion."""
+
+    matches: int
+    odds_selections: int
+
+
+class IngestionPipeline:
+    """Validation → normalization → master database pipeline."""
+
+    def __init__(
+        self,
+        database: ResearchDatabase,
+        leagues: dict[str, dict[str, str]] = LEAGUES,
+    ) -> None:
+        self.database = database
+        self.leagues = leagues
+
+    def run(self, provider: DataProvider) -> IngestionSummary:
+        """Ingest a provider through its common interface."""
+        matches = provider.matches()
+        snapshots = provider.odds()
+        with self.database.batch():
+            self.database.initialize()
+            for match in matches:
+                metadata = self.leagues.get(
+                    match.league_code,
+                    {"name": match.league_code, "country": "Unknown"},
+                )
+                self.database.upsert_match(
+                    provider.name,
+                    match,
+                    league_name=metadata["name"],
+                    country=metadata["country"],
+                )
+            selections = sum(
+                self.database.add_odds(provider.name, snapshot)
+                for snapshot in snapshots
+            )
+        return IngestionSummary(matches=len(matches), odds_selections=selections)

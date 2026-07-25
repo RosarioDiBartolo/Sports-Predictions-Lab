@@ -1,11 +1,11 @@
 from test_modeling_dataset import match_frame
 
 from football_odds.config import ModelingConfig
-from football_odds.modeling_dataset import (
+from football_odds.features import (
     build_prematch_features,
     prepare_modeling_matches,
 )
-from football_odds.modeling_reporting import (
+from football_odds.reports import (
     export_modeling_report,
     modeling_diagnostics,
 )

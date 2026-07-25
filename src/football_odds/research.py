@@ -1,21 +1,260 @@
+"""Canonical analytics dataset and research reporting."""
+
 from __future__ import annotations
 
 from pathlib import Path
 
 import matplotlib
-
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.io as pio
 
-from .analyzer import (
-    analyze_odds_ranges,
-    compare_bookmakers,
-    compare_leagues,
-    compare_opening_closing,
-)
+from .config import ODDS_RANGE_EDGES, AnalysisConfig
+from .database import ResearchDatabase
+
+matplotlib.use("Agg")
+
+ANALYTICS_QUERY = """
+SELECT
+    m.match_id,
+    b.bookmaker_name AS bookmaker,
+    p.provider_name AS provider,
+    o.market,
+    o.selection,
+    o.decimal_odds AS odds,
+    o.implied_probability,
+    r.result,
+    o.margin,
+    o.timestamp,
+    o.opening_or_closing,
+    m.season,
+    l.league_name AS league,
+    ht.team_name AS home_team,
+    at.team_name AS away_team,
+    r.home_goals,
+    r.away_goals
+FROM odds o
+JOIN matches m ON m.match_id = o.match_id
+JOIN bookmakers b ON b.bookmaker_id = o.bookmaker_id
+JOIN providers p ON p.provider_id = o.provider_id
+JOIN leagues l ON l.league_id = m.league_id
+JOIN teams ht ON ht.team_id = m.home_team_id
+JOIN teams at ON at.team_id = m.away_team_id
+LEFT JOIN match_results r ON r.match_id = m.match_id
+"""
+
+
+def build_analytics_dataset(
+    database: ResearchDatabase | Path | str,
+    *,
+    bin_width: float = 0.05,
+) -> pd.DataFrame:
+    """Build one analysis row per bookmaker selection and snapshot."""
+    repository = (
+        database
+        if isinstance(database, ResearchDatabase)
+        else ResearchDatabase(database)
+    )
+    repository.initialize()
+    with repository.connect() as connection:
+        frame = pd.read_sql_query(ANALYTICS_QUERY, connection)
+    fixed = frame["opening_or_closing"].isin(["opening", "closing"])
+    canonical = frame.loc[fixed].drop_duplicates(
+        [
+            "match_id",
+            "bookmaker",
+            "market",
+            "selection",
+            "opening_or_closing",
+        ],
+        keep="last",
+    )
+    frame = pd.concat([canonical, frame.loc[~fixed]], ignore_index=True)
+    if frame.empty:
+        return frame.assign(
+            prediction_correct=pd.Series(dtype=bool),
+            favorite=pd.Series(dtype=bool),
+            favorite_won=pd.Series(dtype=bool),
+            calibration_bin=pd.Series(dtype=str),
+            logloss_contribution=pd.Series(dtype=float),
+            brier_contribution=pd.Series(dtype=float),
+            roi=pd.Series(dtype=float),
+        )
+
+    frame["prediction_correct"] = frame["selection"] == frame["result"]
+    snapshot_keys = [
+        "match_id",
+        "bookmaker",
+        "market",
+        "timestamp",
+        "opening_or_closing",
+    ]
+    maximum = frame.groupby(snapshot_keys, dropna=False)[
+        "implied_probability"
+    ].transform("max")
+    frame["favorite"] = frame["implied_probability"].eq(maximum)
+    frame["favorite_won"] = frame["favorite"] & frame["prediction_correct"]
+    edges = np.append(np.arange(0, 1, bin_width), 1.0)
+    frame["calibration_bin"] = pd.cut(
+        frame["implied_probability"],
+        bins=np.unique(edges),
+        include_lowest=True,
+    ).astype(str)
+    actual = frame["prediction_correct"].astype(float)
+    probability = frame["implied_probability"].clip(1e-15, 1 - 1e-15)
+    true_probability = probability.where(frame["prediction_correct"])
+    frame["logloss_contribution"] = -np.log(
+        true_probability.groupby(
+            [frame[key] for key in snapshot_keys], dropna=False
+        ).transform("max")
+    )
+    squared_error = (probability - actual) ** 2
+    frame["brier_contribution"] = squared_error.groupby(
+        [frame[key] for key in snapshot_keys], dropna=False
+    ).transform("sum")
+    frame["roi"] = np.where(frame["prediction_correct"], frame["odds"] - 1.0, -1.0)
+    return frame
+
+
+def save_analytics_dataset(
+    config: AnalysisConfig,
+    database: ResearchDatabase | None = None,
+) -> pd.DataFrame:
+    """Build and persist the replaceable analytics layer."""
+    frame = build_analytics_dataset(
+        database or ResearchDatabase(config.database_path),
+        bin_width=config.bin_width,
+    )
+    config.ensure_directories()
+    frame.to_csv(config.processed_dir / "analytics_dataset.csv", index=False)
+    return frame
+
+
+def analyze_predictions(frame: pd.DataFrame) -> dict[str, float | int]:
+    """Calculate binary selection-level research metrics."""
+    if frame.empty:
+        raise ValueError("Il dataset analitico è vuoto.")
+    actual = frame["prediction_correct"].astype(float)
+    probability = frame["implied_probability"]
+    calibration = (
+        frame.groupby("calibration_bin", observed=True)
+        .agg(
+            observations=("prediction_correct", "size"),
+            predicted=("implied_probability", "mean"),
+            actual=("prediction_correct", "mean"),
+        )
+        .reset_index()
+    )
+    absolute_error = (calibration["predicted"] - calibration["actual"]).abs()
+    ece = np.average(absolute_error, weights=calibration["observations"])
+    favorite_rows = frame[frame["favorite"]]
+    return {
+        "predictions": len(frame),
+        "accuracy": float(favorite_rows["favorite_won"].mean()),
+        "log_loss": float(frame["logloss_contribution"].mean()),
+        "brier_score": float(frame["brier_contribution"].mean()),
+        "calibration_error": float(actual.mean() - probability.mean()),
+        "expected_calibration_error": float(ece),
+        "average_overround": float(frame["margin"].mean()),
+        "sharpness": float(probability.var(ddof=0)),
+    }
+
+
+def compare_bookmakers(frame: pd.DataFrame) -> pd.DataFrame:
+    """Rank bookmakers on the common set of available predictions."""
+    bookmakers = frame["bookmaker"].nunique()
+    if bookmakers > 1:
+        coverage = frame.groupby(
+            ["match_id", "market", "selection", "opening_or_closing"]
+        )["bookmaker"].nunique()
+        shared = coverage[coverage == bookmakers].index
+        indexed = frame.set_index(
+            ["match_id", "market", "selection", "opening_or_closing"]
+        )
+        common = indexed[indexed.index.isin(shared)].reset_index()
+        if not common.empty:
+            frame = common
+    rows = []
+    for bookmaker, group in frame.groupby("bookmaker", sort=True):
+        rows.append({"bookmaker": bookmaker, **analyze_predictions(group)})
+    result = pd.DataFrame(rows)
+    if result.empty:
+        return result
+    result["rank"] = result["log_loss"].rank(method="min").astype(int)
+    return result.sort_values(["rank", "bookmaker"]).reset_index(drop=True)
+
+
+def analyze_odds_ranges(
+    frame: pd.DataFrame,
+    edges: tuple[float, ...] = ODDS_RANGE_EDGES,
+) -> pd.DataFrame:
+    """Aggregate calibration and flat-stake ROI by decimal-odds range."""
+    data = frame.copy()
+    labels = [
+        f"{left:.2f}-{right:.2f}" if np.isfinite(right) else f"{left:.2f}+"
+        for left, right in zip(edges[:-1], edges[1:], strict=True)
+    ]
+    data["odds_range"] = pd.cut(
+        data["odds"],
+        bins=edges,
+        labels=labels,
+        include_lowest=True,
+        right=False,
+    )
+    result = (
+        data.groupby("odds_range", observed=True)
+        .agg(
+            predictions=("prediction_correct", "size"),
+            implied_probability=("implied_probability", "mean"),
+            actual_frequency=("prediction_correct", "mean"),
+            roi=("roi", "mean"),
+        )
+        .reset_index()
+    )
+    result["calibration_error"] = (
+        result["actual_frequency"] - result["implied_probability"]
+    )
+    return result
+
+
+def compare_leagues(frame: pd.DataFrame) -> pd.DataFrame:
+    """Calculate the same metrics for every available league."""
+    return pd.DataFrame(
+        [
+            {"league": league, **analyze_predictions(group)}
+            for league, group in frame.groupby("league", sort=True)
+        ]
+    )
+
+
+def compare_opening_closing(frame: pd.DataFrame) -> pd.DataFrame:
+    """Compare timing metrics and average probability movement."""
+    rows = []
+    key = ["match_id", "bookmaker", "market", "selection"]
+    pivot = frame.pivot_table(
+        index=key,
+        columns="opening_or_closing",
+        values="implied_probability",
+        aggfunc="last",
+    )
+    movement = (
+        (pivot["closing"] - pivot["opening"]).abs().mean()
+        if {"opening", "closing"}.issubset(pivot.columns)
+        else float("nan")
+    )
+    for timing, group in frame[
+        frame["opening_or_closing"].isin(["opening", "closing"])
+    ].groupby("opening_or_closing"):
+        rows.append(
+            {
+                "timing": timing,
+                **analyze_predictions(group),
+                "mean_absolute_probability_movement": float(movement),
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def _save_histogram(

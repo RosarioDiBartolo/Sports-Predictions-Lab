@@ -1,6 +1,6 @@
 import pytest
 
-from football_odds.elo import EloRatings, EloSettings
+from football_odds.features import EloRatings, EloSettings
 
 
 def test_elo_reads_before_update_and_is_zero_sum():

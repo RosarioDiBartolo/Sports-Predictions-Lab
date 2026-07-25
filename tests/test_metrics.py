@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from football_odds.metrics import calculate_metrics, multiclass_brier_score
+from football_odds.market import calculate_metrics, multiclass_brier_score
 
 
 def test_perfect_brier_score_is_zero():

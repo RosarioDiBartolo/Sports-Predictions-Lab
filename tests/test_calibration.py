@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from football_odds.calibration import (
+from football_odds.market import (
     calibration_table,
     expected_calibration_error,
 )

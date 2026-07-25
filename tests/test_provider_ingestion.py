@@ -1,8 +1,7 @@
 import pandas as pd
 
 from football_odds.database import ResearchDatabase
-from football_odds.ingestion import IngestionPipeline
-from football_odds.providers.football_data import FootballDataProvider
+from football_odds.sources import FootballDataProvider, IngestionPipeline
 
 
 def sample_frame() -> pd.DataFrame:

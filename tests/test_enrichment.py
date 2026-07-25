@@ -1,12 +1,12 @@
 from datetime import datetime
 
 from football_odds.database import ResearchDatabase
-from football_odds.domain import MatchRecord
 from football_odds.enrichment import (
     _wikidata_venue,
     enrich_historical_weather,
     resolve_team_venues,
 )
+from football_odds.sources import MatchRecord
 
 
 def _database(tmp_path):

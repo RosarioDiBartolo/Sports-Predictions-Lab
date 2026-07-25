@@ -1,15 +1,14 @@
 import numpy as np
 from test_provider_ingestion import sample_frame
 
-from football_odds.analytics_dataset import build_analytics_dataset
-from football_odds.analyzer import (
+from football_odds.database import ResearchDatabase
+from football_odds.research import (
     analyze_odds_ranges,
     analyze_predictions,
+    build_analytics_dataset,
     compare_opening_closing,
 )
-from football_odds.database import ResearchDatabase
-from football_odds.ingestion import IngestionPipeline
-from football_odds.providers.football_data import FootballDataProvider
+from football_odds.sources import FootballDataProvider, IngestionPipeline
 
 
 def _dataset(tmp_path):

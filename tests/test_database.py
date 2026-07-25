@@ -2,7 +2,7 @@ from dataclasses import replace
 from datetime import datetime
 
 from football_odds.database import ResearchDatabase
-from football_odds.domain import MatchRecord, OddsRecord
+from football_odds.sources import MatchRecord, OddsRecord
 
 
 def _match(provider_id: str = "provider-1") -> MatchRecord:
@@ -127,7 +127,7 @@ def test_database_normalizes_odds_and_keeps_snapshots(tmp_path):
         assert round(sum(row["implied_probability"] for row in opening_rows), 10) == 1
 
 
-def test_future_ready_tables_exist(tmp_path):
+def test_schema_contains_only_pipeline_owned_tables(tmp_path):
     database = ResearchDatabase(tmp_path / "research.sqlite3")
     database.initialize()
     with database.connect() as connection:
@@ -137,19 +137,18 @@ def test_future_ready_tables_exist(tmp_path):
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )
         }
-    assert {
-        "players",
-        "player_match_stats",
-        "lineups",
-        "injuries",
-        "transfers",
-        "player_ratings",
-        "team_ratings",
-        "elo_history",
-        "team_form",
-        "weather",
-        "referees",
-    }.issubset(names)
+    assert names.difference({"sqlite_sequence"}) == {
+        "bookmakers",
+        "leagues",
+        "match_results",
+        "matches",
+        "odds",
+        "provider_match_mapping",
+        "providers",
+        "team_venues",
+        "teams",
+        "weather_observations",
+    }
 
 
 def test_initialize_migrates_legacy_odds_with_provider_provenance(tmp_path):

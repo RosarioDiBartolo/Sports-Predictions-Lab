@@ -1,3 +1,4 @@
+import json
 import sys
 
 import pandas as pd
@@ -5,33 +6,38 @@ import pytest
 from test_provider_ingestion import sample_frame
 
 from football_odds import cli
-from football_odds.analytics_dataset import (
-    build_analytics_dataset,
-    save_analytics_dataset,
-)
-from football_odds.analyzer import (
-    analyze_predictions,
-    compare_bookmakers,
-    compare_leagues,
-)
-from football_odds.calibration import (
+from football_odds.config import AnalysisConfig, ModelingConfig
+from football_odds.database import ResearchDatabase
+from football_odds.market import (
+    calculate_metrics,
     calibration_table,
+    encode_results,
     expected_calibration_error,
+    find_odds_columns,
+    metrics_by_season,
     plot_calibration,
+    prepare_matches,
     to_long_calibration,
 )
-from football_odds.config import AnalysisConfig, ModelingConfig
-from football_odds.data import download_season, load_all_seasons, season_url
-from football_odds.database import ResearchDatabase
-from football_odds.domain import OddsRecord
-from football_odds.metrics import calculate_metrics, encode_results, metrics_by_season
-from football_odds.odds import find_odds_columns, prepare_matches
 from football_odds.pipeline import (
     run_analysis,
     run_research_pipeline,
     run_unified_pipeline,
 )
-from football_odds.reporting import export_research_report
+from football_odds.research import (
+    analyze_predictions,
+    build_analytics_dataset,
+    compare_bookmakers,
+    compare_leagues,
+    export_research_report,
+    save_analytics_dataset,
+)
+from football_odds.sources import (
+    OddsRecord,
+    download_season,
+    load_all_seasons,
+    season_url,
+)
 
 
 def test_config_paths_directories_and_validation(tmp_path):
@@ -60,7 +66,7 @@ def test_data_download_cache_and_load(monkeypatch, tmp_path):
             return None
 
     monkeypatch.setattr(
-        "football_odds.data.requests.get", lambda *args, **kwargs: Response()
+        "football_odds.sources.requests.get", lambda *args, **kwargs: Response()
     )
     destination = tmp_path / "raw" / "season.csv"
     downloaded = download_season("2425", "I1", destination)
@@ -143,8 +149,7 @@ def test_database_errors_and_empty_analytics(tmp_path):
 
 def test_comparisons_reporting_and_dataset_save(tmp_path):
     database = ResearchDatabase(tmp_path / "research.sqlite3")
-    from football_odds.ingestion import IngestionPipeline
-    from football_odds.providers.football_data import FootballDataProvider
+    from football_odds.sources import FootballDataProvider, IngestionPipeline
 
     IngestionPipeline(database).run(FootballDataProvider(sample_frame()))
     config = AnalysisConfig(project_dir=tmp_path, seasons=("2425",))
@@ -209,6 +214,13 @@ def test_unified_pipeline_runs_from_canonical_database(monkeypatch, tmp_path):
     assert result.counts["canonical_matches"] == 1
     assert result.artifacts["features"].exists()
     assert result.artifacts["manifest"].exists()
+    manifest = json.loads(result.artifacts["manifest"].read_text(encoding="utf-8"))
+    assert [stage["id"] for stage in manifest["stages"]] == [
+        "01-ingest",
+        "05-features",
+    ]
+    assert "sqlite:matches" in manifest["stages"][0]["outputs"]
+    assert manifest["stages"][1]["rows"]["features"] == 1
 
 
 def test_unified_pipeline_all_targets_and_feature_reuse(monkeypatch, tmp_path):

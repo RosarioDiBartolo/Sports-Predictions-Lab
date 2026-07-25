@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from football_odds.odds import find_odds_columns, remove_margin
+from football_odds.market import find_odds_columns, remove_margin
 
 
 def test_find_odds_columns_prefers_closing_average():

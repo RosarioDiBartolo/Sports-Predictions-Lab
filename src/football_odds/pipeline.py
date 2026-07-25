@@ -6,34 +6,38 @@ from pathlib import Path
 
 import pandas as pd
 
-from .analytics_dataset import save_analytics_dataset
-from .baseline_modeling import BaselineResult, export_baseline_report
-from .calibration import (
-    calibration_table,
-    expected_calibration_error,
-    plot_calibration,
-    to_long_calibration,
-)
 from .config import AnalysisConfig, BackfillConfig, ModelingConfig
-from .data import load_all_seasons
 from .database import ResearchDatabase
-from .ingestion import IngestionPipeline, IngestionSummary
-from .metrics import calculate_metrics, metrics_by_season
-from .modeling_dataset import (
+from .features import (
     build_fixture_features,
     build_prematch_features,
     load_canonical_matches,
 )
-from .modeling_reporting import export_modeling_report
-from .odds import prepare_matches
-from .predictive_model import (
+from .market import (
+    calculate_metrics,
+    calibration_table,
+    expected_calibration_error,
+    metrics_by_season,
+    plot_calibration,
+    prepare_matches,
+    to_long_calibration,
+)
+from .models import (
+    BaselineResult,
     SportModelResult,
+    export_baseline_report,
     export_sport_model,
     load_sport_model,
     predict_fixtures,
 )
-from .providers.football_data import FootballDataProvider
-from .reporting import export_research_report
+from .reports import export_modeling_report
+from .research import export_research_report, save_analytics_dataset
+from .sources import (
+    FootballDataProvider,
+    IngestionPipeline,
+    IngestionSummary,
+    load_all_seasons,
+)
 
 
 @dataclass
@@ -105,7 +109,7 @@ def run_analysis(
 def run_research_pipeline(
     config: AnalysisConfig | None = None, *, refresh: bool = False
 ) -> ResearchResult:
-    """Run provider → database → analytics → report without changing the MVP."""
+    """Run provider â†’ database â†’ analytics â†’ report without changing the MVP."""
     config = config or AnalysisConfig()
     raw = load_all_seasons(config, refresh=refresh)
     database = ResearchDatabase(config.database_path)
@@ -222,15 +226,21 @@ def run_unified_pipeline(
     completed: list[str] = []
     artifacts: dict[str, Path] = {}
     counts: dict[str, int] = {}
+    stages: list[dict[str, object]] = []
     database_path = config.project_dir / "data" / "football_odds.sqlite3"
     database = ResearchDatabase(database_path)
 
     # All downstream stages depend on canonical ingestion.
+    ingest_inputs: list[str] = []
     for league in config.leagues:
         analysis = AnalysisConfig(
             league=league,
             seasons=config.seasons,
             project_dir=config.project_dir,
+        )
+        ingest_inputs.extend(
+            str(analysis.raw_dir / f"{league}_{season}.csv")
+            for season in config.seasons
         )
         raw = load_all_seasons(analysis, refresh=refresh)
         summary = IngestionPipeline(database).run(FootballDataProvider(raw))
@@ -240,6 +250,27 @@ def run_unified_pipeline(
         )
     completed.append("ingest")
     artifacts["database"] = database_path
+    stages.append(
+        {
+            "id": "01-ingest",
+            "inputs": ingest_inputs,
+            "outputs": [
+                "sqlite:leagues",
+                "sqlite:teams",
+                "sqlite:providers",
+                "sqlite:bookmakers",
+                "sqlite:matches",
+                "sqlite:match_results",
+                "sqlite:provider_match_mapping",
+                "sqlite:odds",
+            ],
+            "rows": {
+                "matches": counts["matches_ingested"],
+                "odds": counts["odds_selections_ingested"],
+            },
+            "status": "completed",
+        }
+    )
 
     analysis_config = AnalysisConfig(project_dir=config.project_dir)
     if requested.intersection({"analytics", "market"}):
@@ -252,6 +283,26 @@ def run_unified_pipeline(
         )
         artifacts.update(
             {f"research_{key}": value for key, value in report_paths.items()}
+        )
+        stages.append(
+            {
+                "id": "03-analytics",
+                "inputs": [
+                    "sqlite:matches",
+                    "sqlite:match_results",
+                    "sqlite:odds",
+                    "sqlite:bookmakers",
+                    "sqlite:providers",
+                    "sqlite:leagues",
+                    "sqlite:teams",
+                ],
+                "outputs": [
+                    str(artifacts["analytics"]),
+                    *(str(path) for path in report_paths.values()),
+                ],
+                "rows": {"analytics": len(analytics)},
+                "status": "completed",
+            }
         )
 
     canonical = load_canonical_matches(
@@ -289,6 +340,29 @@ def run_unified_pipeline(
                 "market_metrics": analysis_config.report_dir / "metrics.json",
                 "market_calibration": analysis_config.report_dir
                 / "calibration_curve.png",
+            }
+        )
+        stages.append(
+            {
+                "id": "04-market",
+                "inputs": [
+                    "sqlite:matches",
+                    "sqlite:match_results",
+                    "sqlite:odds",
+                ],
+                "outputs": [
+                    str(analysis_config.processed_dir / "matches.csv"),
+                    str(analysis_config.report_dir / "calibration_table.csv"),
+                    str(analysis_config.report_dir / "metrics_by_season.csv"),
+                    str(artifacts["market_metrics"]),
+                    str(artifacts["market_calibration"]),
+                ],
+                "rows": {
+                    "matches": len(market),
+                    "calibration_bins": len(table),
+                    "season_metrics": len(seasons),
+                },
+                "status": "completed",
             }
         )
 
@@ -336,6 +410,23 @@ def run_unified_pipeline(
         artifacts.update(
             {f"modeling_{key}": value for key, value in modeling_paths.items()}
         )
+        stages.append(
+            {
+                "id": "05-features",
+                "inputs": [
+                    "sqlite:matches",
+                    "sqlite:match_results",
+                    "sqlite:odds",
+                ],
+                "outputs": [
+                    str(feature_path),
+                    str(feature_manifest_path),
+                    *(str(path) for path in modeling_paths.values()),
+                ],
+                "rows": {"features": len(features)},
+                "status": "completed",
+            }
+        )
 
     if "baselines" in requested:
         if features is None:
@@ -344,6 +435,18 @@ def run_unified_pipeline(
         completed.append("baselines")
         artifacts.update(
             {f"baseline_{key}": value for key, value in baseline.outputs.items()}
+        )
+        stages.append(
+            {
+                "id": "06-baselines",
+                "inputs": [str(feature_path)],
+                "outputs": [str(path) for path in baseline.outputs.values()],
+                "rows": {
+                    "predictions": len(getattr(baseline, "predictions", [])),
+                    "metrics": len(getattr(baseline, "metrics", [])),
+                },
+                "status": "completed",
+            }
         )
 
     if "model" in requested:
@@ -356,9 +459,18 @@ def run_unified_pipeline(
         completed.append("model")
         counts["sport_model_oos_predictions"] = len(sport_model.predictions)
         artifacts.update(
+            {f"sport_model_{key}": value for key, value in sport_model.outputs.items()}
+        )
+        stages.append(
             {
-                f"sport_model_{key}": value
-                for key, value in sport_model.outputs.items()
+                "id": "07-model",
+                "inputs": [str(feature_path)],
+                "outputs": [str(path) for path in sport_model.outputs.values()],
+                "rows": {
+                    "oos_predictions": len(sport_model.predictions),
+                    "metrics": len(sport_model.metrics),
+                },
+                "status": "completed",
             }
         )
 
@@ -368,6 +480,7 @@ def run_unified_pipeline(
         json.dumps(
             {
                 "completed_stages": completed,
+                "stages": stages,
                 "counts": counts,
                 "artifacts": {key: str(value) for key, value in artifacts.items()},
                 "leagues": list(config.leagues),
@@ -412,9 +525,7 @@ def run_sport_model_pipeline(
         for key, value in result.artifacts.items()
         if key.startswith("sport_model_")
     }
-    predictor = (
-        load_sport_model(outputs["model"]) if "model" in outputs else None
-    )
+    predictor = load_sport_model(outputs["model"]) if "model" in outputs else None
     return SportModelResult(metrics, predictions, outputs, predictor)
 
 
@@ -436,9 +547,7 @@ def run_fixture_prediction(
             f"Modello non trovato: {model_path}. Eseguire prima `odds-lab sport-model`."
         )
     fixtures = pd.read_csv(fixtures_path)
-    database = ResearchDatabase(
-        config.project_dir / "data" / "football_odds.sqlite3"
-    )
+    database = ResearchDatabase(config.project_dir / "data" / "football_odds.sqlite3")
     history = load_canonical_matches(
         database,
         leagues=config.leagues,
@@ -454,6 +563,53 @@ def run_fixture_prediction(
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(output_path, index=False)
+    manifest_path = config.report_dir.parent / "pipeline_manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        manifest = {
+            "completed_stages": [],
+            "stages": [],
+            "counts": {},
+            "artifacts": {},
+            "leagues": list(config.leagues),
+            "seasons": list(config.seasons),
+        }
+    completed = [
+        stage for stage in manifest.get("completed_stages", []) if stage != "predict"
+    ]
+    manifest["completed_stages"] = [*completed, "predict"]
+    previous_stages = [
+        stage
+        for stage in manifest.get("stages", [])
+        if isinstance(stage, dict) and stage.get("id") != "08-predict"
+    ]
+    manifest["stages"] = [
+        *previous_stages,
+        {
+            "id": "08-predict",
+            "inputs": [
+                str(fixtures_path),
+                str(model_path),
+                "sqlite:matches",
+                "sqlite:match_results",
+            ],
+            "outputs": [str(output_path)],
+            "rows": {"predictions": len(predictions)},
+            "status": "completed",
+        },
+    ]
+    counts = dict(manifest.get("counts", {}))
+    counts["fixture_predictions"] = len(predictions)
+    manifest["counts"] = counts
+    artifacts = dict(manifest.get("artifacts", {}))
+    artifacts["future_predictions"] = str(output_path)
+    manifest["artifacts"] = artifacts
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
     return FixturePredictionResult(predictions, output_path)
 
 
