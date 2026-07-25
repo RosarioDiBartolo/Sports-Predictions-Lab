@@ -15,9 +15,14 @@ odds-lab build all
 The pipeline resolves one canonical dependency graph:
 
 ```text
-acquire → normalize → SQLite
-                     ├→ analytics → market evaluation
-                     └→ pre-match features → walk-forward baselines
+01 ingest:    raw CSV → SQLite canonical tables
+02 enrich:    teams + matches → venues + weather
+03 analytics: canonical tables → analytics_dataset.csv + research tables
+04 market:    matches + odds → calibration and market metrics
+05 features:  canonical history → modeling_features.csv
+06 baselines: modeling_features.csv → baseline predictions + metrics
+07 model:     modeling_features.csv → model + OOS evidence
+08 predict:   model + history + fixtures → upcoming_predictions.csv
 ```
 
 Target individual outputs when needed:
@@ -48,16 +53,14 @@ cards, finishing rates, venue splits and exponentially weighted recent form.
 The model report includes paired-bootstrap uncertainty and an explicit
 promotion gate against the logistic sports baseline.
 
-The execution manifest is written to `reports/pipeline_manifest.json`.
+The execution manifest is written to `reports/pipeline_manifest.json`. For each
+executed stage it records exact inputs, outputs, row counts and status.
 
 ## Living documentation
 
 Architecture, features, commands, artifacts, dependencies and guarantees are
 maintained in `docs-app/src/docs.ts`. It is both the LLM-readable source of
 truth and the data source rendered by the documentation webapp.
-
-`PROJECT_CONTEXT.md`, `docs/ARCHITECTURE.md` and presentations are historical
-snapshots, not maintained documentation.
 
 ## Quality
 
