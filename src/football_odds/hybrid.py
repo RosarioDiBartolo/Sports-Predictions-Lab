@@ -35,7 +35,17 @@ from .models import (
 )
 
 HYBRID_MODEL_NAME = "dixon_coles_gradient_boosting"
+HYBRID_WITH_PLAYERS = HYBRID_MODEL_NAME
+HYBRID_WITHOUT_PLAYERS = f"{HYBRID_MODEL_NAME}_without_players"
 GOAL_IDENTITY_FEATURES = ("home_team", "away_team", "league")
+
+
+def _player_feature_columns(columns: pd.Index) -> list[str]:
+    return [
+        column
+        for column in columns
+        if isinstance(column, str) and "_player_" in column
+    ]
 
 
 def _goal_estimator(numeric_features: list[str]) -> Pipeline:
@@ -178,8 +188,17 @@ class HybridPredictor:
         return blended / blended.sum(axis=1, keepdims=True)
 
 
-def fit_hybrid_model(features: pd.DataFrame) -> HybridPredictor:
+def fit_hybrid_model(
+    features: pd.DataFrame,
+    *,
+    include_player_features: bool = True,
+) -> HybridPredictor:
     """Fit goal rates, Dixon-Coles dependence and the existing sport model."""
+    if not include_player_features:
+        features = features.drop(
+            columns=_player_feature_columns(features.columns),
+            errors="ignore",
+        )
     data, numeric_features = _validated_training_data(features)
     required = {"home_team", "away_team", "home_goals", "away_goals"}
     missing = required.difference(data.columns)
@@ -206,8 +225,20 @@ def fit_hybrid_model(features: pd.DataFrame) -> HybridPredictor:
 
 def walk_forward_hybrid_model(
     features: pd.DataFrame,
+    *,
+    include_player_features: bool = True,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Evaluate the hybrid candidate using only seasons before each test fold."""
+    if not include_player_features:
+        features = features.drop(
+            columns=_player_feature_columns(features.columns),
+            errors="ignore",
+        )
+    model_name = (
+        HYBRID_WITH_PLAYERS
+        if include_player_features
+        else HYBRID_WITHOUT_PLAYERS
+    )
     data, _ = _validated_training_data(features)
     metrics: list[dict[str, Any]] = []
     predictions: list[pd.DataFrame] = []
@@ -216,18 +247,21 @@ def walk_forward_hybrid_model(
         test = data.loc[data["season"].eq(season)]
         if set(training["result"]) != set(OUTCOMES) or test.empty:
             continue
-        predictor = fit_hybrid_model(training)
+        predictor = fit_hybrid_model(
+            training,
+            include_player_features=include_player_features,
+        )
         probabilities = predictor.predict_proba(test)
         metrics.append(
             {
                 "season": season,
-                "model": HYBRID_MODEL_NAME,
+                "model": model_name,
                 **_probability_metrics(test["result"], probabilities),
                 "calibrated": predictor.gradient_boosting.calibrator is not None,
             }
         )
         frame = test[["match_id", "season", "league", "result"]].copy()
-        frame["model"] = HYBRID_MODEL_NAME
+        frame["model"] = model_name
         frame[list(PROBABILITY_COLUMNS)] = probabilities
         predictions.append(frame)
     metric_columns = [
@@ -263,6 +297,18 @@ def export_hybrid_model(
     """Persist the hybrid candidate and evidence against the official model."""
     destination.mkdir(parents=True, exist_ok=True)
     metrics, predictions = walk_forward_hybrid_model(features)
+    metrics_without_players, predictions_without_players = (
+        walk_forward_hybrid_model(features, include_player_features=False)
+    )
+    ablation_metrics = pd.concat(
+        [metrics, metrics_without_players],
+        ignore_index=True,
+    )
+    ablation_summary = _weighted_summary(ablation_metrics)
+    ablation_bootstrap = paired_log_loss_bootstrap(
+        predictions,
+        predictions_without_players,
+    )
     official_metrics, official_predictions = walk_forward_sport_model(features)
     baseline_metrics, _ = walk_forward_baselines(features)
     market_metrics = baseline_metrics.loc[
@@ -292,11 +338,20 @@ def export_hybrid_model(
     metadata_path = destination / "hybrid_model.meta.json"
     model_path = destination / "hybrid_model.joblib"
     report_path = destination / "HYBRID_MODEL_REPORT.md"
+    ablation_metrics_path = destination / "hybrid_player_ablation_by_season.csv"
+    ablation_summary_path = destination / "hybrid_player_ablation_summary.csv"
+    ablation_bootstrap_path = destination / "hybrid_player_ablation_bootstrap.json"
     metrics.to_csv(metrics_path, index=False)
     predictions.to_csv(predictions_path, index=False)
     summary.to_csv(comparison_path, index=False)
     bootstrap_path.write_text(
         json.dumps(bootstrap, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    ablation_metrics.to_csv(ablation_metrics_path, index=False)
+    ablation_summary.to_csv(ablation_summary_path, index=False)
+    ablation_bootstrap_path.write_text(
+        json.dumps(ablation_bootstrap, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
     joblib.dump(predictor, model_path)
@@ -317,6 +372,10 @@ def export_hybrid_model(
         "excluded_inputs": ["odds", "market probabilities", "final targets"],
         "bootstrap_vs_official": bootstrap,
         "promotion": promotion,
+        "player_ablation": {
+            "player_feature_columns": _player_feature_columns(features.columns),
+            "bootstrap_with_minus_without": ablation_bootstrap,
+        },
     }
     metadata_path.write_text(
         json.dumps(metadata, indent=2, ensure_ascii=False),
@@ -352,8 +411,47 @@ def export_hybrid_model(
             f"- Verdetto: {'PROMOSSO' if promotion['promoted'] else 'NON PROMOSSO'}.",
             "",
             "Le quote closing sono utilizzate esclusivamente come benchmark.",
+            "",
+            "## Ablazione feature giocatore",
+            "",
+            "| Variante | Match | Log Loss | Brier | ECE |",
+            "|---|---:|---:|---:|---:|",
         ]
     )
+    for row in ablation_summary.to_dict("records"):
+        lines.append(
+            f"| {row['model']} | {int(row['matches'])} | "
+            f"{row['log_loss']:.4f} | {row['brier']:.4f} | "
+            f"{row['ece']:.4f} |"
+        )
+    lines.extend(
+        [
+            "",
+            "Differenza Log Loss con giocatori - senza giocatori: "
+            f"{ablation_bootstrap['mean_log_loss_difference']:.4f} "
+            f"(IC 95% {ablation_bootstrap['ci_low']:.4f}, "
+            f"{ablation_bootstrap['ci_high']:.4f}).",
+            "",
+            "## Stabilità stagionale feature giocatore",
+            "",
+            "| Stagione | Log Loss con | Log Loss senza | Delta | "
+            "Brier con | Brier senza | ECE con | ECE senza |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    season_ablation = metrics.merge(
+        metrics_without_players,
+        on="season",
+        suffixes=("_with", "_without"),
+    )
+    for row in season_ablation.to_dict("records"):
+        lines.append(
+            f"| {row['season']} | {row['log_loss_with']:.4f} | "
+            f"{row['log_loss_without']:.4f} | "
+            f"{row['log_loss_with'] - row['log_loss_without']:+.4f} | "
+            f"{row['brier_with']:.4f} | {row['brier_without']:.4f} | "
+            f"{row['ece_with']:.4f} | {row['ece_without']:.4f} |"
+        )
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     outputs = {
         "metrics": metrics_path,
@@ -363,6 +461,9 @@ def export_hybrid_model(
         "metadata": metadata_path,
         "model": model_path,
         "report": report_path,
+        "player_ablation_metrics": ablation_metrics_path,
+        "player_ablation_summary": ablation_summary_path,
+        "player_ablation_bootstrap": ablation_bootstrap_path,
         **{f"error_by_{name}": path for name, path in diagnostic_paths.items()},
     }
     return SportModelResult(metrics, predictions, outputs, predictor)

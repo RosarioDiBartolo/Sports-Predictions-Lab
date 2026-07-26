@@ -4,6 +4,7 @@ import pytest
 
 from football_odds.hybrid import (
     HYBRID_MODEL_NAME,
+    HYBRID_WITHOUT_PLAYERS,
     _dc_tau,
     _fit_rho,
     export_hybrid_model,
@@ -78,12 +79,32 @@ def test_hybrid_export_runs_same_gate_without_replacing_official(tmp_path):
     assert result.outputs["report"].exists()
     assert metadata["official_model_unchanged"] is True
     assert "promotion" in metadata
+    assert result.outputs["player_ablation_metrics"].exists()
+    assert result.outputs["player_ablation_summary"].exists()
+    assert result.outputs["player_ablation_bootstrap"].exists()
     assert load_hybrid_model(result.outputs["model"]).rho == result.predictor.rho
     assert {
         HYBRID_MODEL_NAME,
         "sport_gradient_boosting",
         "market_closing",
     }.issubset(set(pd.read_csv(result.outputs["comparison"])["model"]))
+
+
+def test_hybrid_player_ablation_uses_identical_walk_forward_folds():
+    features = _features()
+    features["home_player_expected_attack"] = np.arange(len(features))
+    features["away_player_expected_attack"] = np.arange(len(features))[::-1]
+    with_players, _ = walk_forward_hybrid_model(features)
+    without_players, _ = walk_forward_hybrid_model(
+        features,
+        include_player_features=False,
+    )
+    assert set(without_players["model"]) == {HYBRID_WITHOUT_PLAYERS}
+    assert with_players[["season", "matches"]].equals(
+        without_players[["season", "matches"]]
+    )
+    predictor = fit_hybrid_model(features, include_player_features=False)
+    assert not any("_player_" in name for name in predictor.numeric_features)
 
 
 def test_hybrid_rejects_incomplete_feature_contracts():

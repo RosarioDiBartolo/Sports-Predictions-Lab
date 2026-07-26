@@ -5,10 +5,6 @@
   "goal_weight": 0.55,
   "rho": -0.05500000000000002,
   "trained_seasons": [
-    "1819",
-    "1920",
-    "2021",
-    "2122",
     "2223",
     "2324",
     "2425"
@@ -28,6 +24,18 @@
     "away_goal_difference_ewm",
     "home_shots_on_target_difference_ewm",
     "away_shots_on_target_difference_ewm",
+    "home_player_expected_strength",
+    "away_player_expected_strength",
+    "home_player_expected_attack",
+    "away_player_expected_attack",
+    "home_player_expected_defense",
+    "away_player_expected_defense",
+    "home_player_bench_quality",
+    "away_player_bench_quality",
+    "home_player_lineup_continuity",
+    "away_player_lineup_continuity",
+    "home_player_lineup_uncertainty",
+    "away_player_lineup_uncertainty",
     "home_points_5",
     "home_goals_for_5",
     "home_goals_against_5",
@@ -99,19 +107,43 @@
     "final targets"
   ],
   "bootstrap_vs_official": {
-    "matches": 10707,
-    "mean_log_loss_difference": -0.014044728667692238,
-    "ci_low": -0.016464443686507887,
-    "ci_high": -0.011732676739973287,
+    "matches": 760,
+    "mean_log_loss_difference": -0.0724868623206215,
+    "ci_low": -0.09411693054041514,
+    "ci_high": -0.052306350852704235,
     "probability_candidate_better": 1.0,
     "verdict": "candidate_better"
   },
   "promotion": {
     "promoted": true,
-    "season_wins": 6,
-    "required_season_wins": 4,
+    "season_wins": 2,
+    "required_season_wins": 2,
     "significant_log_loss": true,
     "brier_not_worse": true,
     "ece_not_worse": true
+  },
+  "player_ablation": {
+    "player_feature_columns": [
+      "home_player_expected_strength",
+      "home_player_expected_attack",
+      "home_player_expected_defense",
+      "home_player_bench_quality",
+      "home_player_lineup_continuity",
+      "home_player_lineup_uncertainty",
+      "away_player_expected_strength",
+      "away_player_expected_attack",
+      "away_player_expected_defense",
+      "away_player_bench_quality",
+      "away_player_lineup_continuity",
+      "away_player_lineup_uncertainty"
+    ],
+    "bootstrap_with_minus_without": {
+      "matches": 760,
+      "mean_log_loss_difference": -0.00252222774651786,
+      "ci_low": -0.010066903320740925,
+      "ci_high": 0.004980701055164402,
+      "probability_candidate_better": 0.731,
+      "verdict": "inconclusive"
+    }
   }
 }
