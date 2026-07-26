@@ -126,6 +126,18 @@ CREATE TABLE IF NOT EXISTS lineup_players (
     shirt_number INTEGER,
     PRIMARY KEY(lineup_id, player_id)
 );
+CREATE TABLE IF NOT EXISTS player_match_lineup_stats (
+    match_id TEXT NOT NULL REFERENCES matches(match_id) ON DELETE CASCADE,
+    team_id INTEGER NOT NULL REFERENCES teams(team_id),
+    player_id TEXT NOT NULL REFERENCES players(player_id),
+    provider_id INTEGER NOT NULL REFERENCES providers(provider_id),
+    lineup_role TEXT NOT NULL CHECK(lineup_role IN ('starter', 'bench')),
+    position TEXT,
+    minute_in REAL,
+    minute_out REAL,
+    minutes_played REAL NOT NULL CHECK(minutes_played >= 0),
+    PRIMARY KEY(match_id, player_id, provider_id)
+);
 CREATE TABLE IF NOT EXISTS odds (
     odds_id INTEGER PRIMARY KEY,
     match_id TEXT NOT NULL REFERENCES matches(match_id) ON DELETE CASCADE,
@@ -176,6 +188,8 @@ CREATE INDEX IF NOT EXISTS idx_memberships_player_time
 ON team_memberships(player_id, valid_from, valid_to);
 CREATE INDEX IF NOT EXISTS idx_lineups_match
 ON fixture_lineups(match_id, team_id, lineup_kind);
+CREATE INDEX IF NOT EXISTS idx_player_match_stats_time
+ON player_match_lineup_stats(match_id, team_id, player_id);
 """
 
 

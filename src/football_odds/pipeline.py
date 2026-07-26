@@ -32,6 +32,10 @@ from .models import (
     load_sport_model,
     predict_fixtures,
 )
+from .player_features import (
+    attach_prematch_player_features,
+    load_historical_lineups,
+)
 from .reports import export_modeling_report
 from .research import export_research_report, save_analytics_dataset
 from .sources import (
@@ -382,6 +386,11 @@ def run_unified_pipeline(
         "elo_home_advantage": config.elo_home_advantage,
         "elo_season_regression": config.elo_season_regression,
         "canonical_hash": int(pd.util.hash_pandas_object(canonical, index=False).sum()),
+        "player_lineup_hash": int(
+            pd.util.hash_pandas_object(
+                load_historical_lineups(database), index=False
+            ).sum()
+        ),
     }
     features: pd.DataFrame | None = None
     if requested.intersection({"features", "baselines", "model", "hybrid", "edge"}):
@@ -400,7 +409,11 @@ def run_unified_pipeline(
         ):
             features = pd.read_csv(feature_path, parse_dates=["date"])
         else:
-            features = build_prematch_features(canonical, config)
+            features = attach_prematch_player_features(
+                canonical,
+                build_prematch_features(canonical, config),
+                database,
+            )
             config.ensure_directories()
             features.to_csv(feature_path, index=False)
             feature_manifest_path.write_text(
@@ -422,6 +435,8 @@ def run_unified_pipeline(
                     "sqlite:matches",
                     "sqlite:match_results",
                     "sqlite:odds",
+                    "sqlite:fixture_lineups",
+                    "sqlite:lineup_players",
                 ],
                 "outputs": [
                     str(feature_path),

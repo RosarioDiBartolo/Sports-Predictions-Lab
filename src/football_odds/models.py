@@ -33,6 +33,18 @@ BASE_SPORT_FEATURES = (
     "away_goal_difference_ewm",
     "home_shots_on_target_difference_ewm",
     "away_shots_on_target_difference_ewm",
+    "home_player_expected_strength",
+    "away_player_expected_strength",
+    "home_player_expected_attack",
+    "away_player_expected_attack",
+    "home_player_expected_defense",
+    "away_player_expected_defense",
+    "home_player_bench_quality",
+    "away_player_bench_quality",
+    "home_player_lineup_continuity",
+    "away_player_lineup_continuity",
+    "home_player_lineup_uncertainty",
+    "away_player_lineup_uncertainty",
 )
 
 

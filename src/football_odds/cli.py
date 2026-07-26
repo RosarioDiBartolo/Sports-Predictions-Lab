@@ -26,8 +26,13 @@ from .pipeline import (
     run_unified_pipeline,
 )
 from .player_coverage import export_api_football_coverage
-from .player_ingestion import import_api_football_lineups
+from .player_ingestion import (
+    backfill_api_football_lineups,
+    import_api_football_lineups,
+)
 from .player_reconciliation import LEAGUE_CODES, reconcile_api_football
+from .seriea_feed import DEFAULT_SEASONS as SERIEA_FEED_SEASONS
+from .seriea_feed import backfill_seriea_feed, export_seriea_feed_audit
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -95,6 +100,35 @@ def build_parser() -> argparse.ArgumentParser:
     player_import.add_argument("--fixtures", nargs="+", required=True)
     player_import.add_argument("--database", type=Path)
     player_import.add_argument("--project-dir", type=Path, default=Path.cwd())
+    player_backfill = subparsers.add_parser(
+        "player-backfill",
+        help="Importa in batch le lineup mancanti per fixture già mappate.",
+    )
+    player_backfill.add_argument("--league", default="I1")
+    player_backfill.add_argument(
+        "--seasons", nargs="+", default=["2223", "2324", "2425"]
+    )
+    player_backfill.add_argument("--limit", type=int)
+    player_backfill.add_argument("--database", type=Path)
+    player_backfill.add_argument("--project-dir", type=Path, default=Path.cwd())
+    seriea_audit = subparsers.add_parser(
+        "seriea-feed-audit",
+        help="Verifica lineup e sostituzioni dal feed pubblico Lega Serie A.",
+    )
+    seriea_audit.add_argument(
+        "--seasons", nargs="+", default=list(SERIEA_FEED_SEASONS)
+    )
+    seriea_audit.add_argument("--sample-matches", type=int, default=10)
+    seriea_audit.add_argument("--project-dir", type=Path, default=Path.cwd())
+    seriea_backfill = subparsers.add_parser(
+        "seriea-feed-backfill",
+        help="Importa lineup, sostituzioni e minuti dal feed pubblico Lega.",
+    )
+    seriea_backfill.add_argument(
+        "--seasons", nargs="+", default=list(SERIEA_FEED_SEASONS)
+    )
+    seriea_backfill.add_argument("--limit", type=int)
+    seriea_backfill.add_argument("--project-dir", type=Path, default=Path.cwd())
     reconcile = subparsers.add_parser(
         "player-reconcile",
         help="Riconcilia fixture API-Football con i match canonici.",
@@ -350,6 +384,73 @@ def main() -> None:
                     "players": result.players,
                     "requests_made": result.requests_made,
                     "modeling_features_changed": False,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "player-backfill":
+        project_dir = args.project_dir.resolve()
+        result = backfill_api_football_lineups(
+            project_dir,
+            league=args.league,
+            seasons=tuple(args.seasons),
+            limit=args.limit,
+            database_path=args.database.resolve() if args.database else None,
+        )
+        print(
+            json.dumps(
+                {
+                    "eligible_fixtures": result.eligible_fixtures,
+                    "already_complete": result.already_complete,
+                    "attempted_fixtures": result.attempted_fixtures,
+                    "imported_fixtures": result.imported_fixtures,
+                    "lineups": result.lineups,
+                    "players": result.players,
+                    "failures": list(result.failures),
+                    "requests_made": result.requests_made,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "seriea-feed-audit":
+        result = export_seriea_feed_audit(
+            args.project_dir.resolve(),
+            seasons=tuple(args.seasons),
+            sample_matches=args.sample_matches,
+        )
+        print(
+            json.dumps(
+                {
+                    "sampled_matches": len(result.matches),
+                    "player_rows": len(result.players),
+                    "requests_made": result.requests_made,
+                    "report": str(result.outputs["report"]),
+                    "modeling_data_changed": False,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "seriea-feed-backfill":
+        result = backfill_seriea_feed(
+            args.project_dir.resolve(),
+            seasons=tuple(args.seasons),
+            limit=args.limit,
+        )
+        print(
+            json.dumps(
+                {
+                    "feed_matches": result.feed_matches,
+                    "mapped_matches": result.mapped_matches,
+                    "already_complete": result.already_complete,
+                    "imported_matches": result.imported_matches,
+                    "unresolved": list(result.unresolved),
+                    "requests_made": result.requests_made,
                 },
                 indent=2,
                 ensure_ascii=False,

@@ -1,0 +1,11 @@
+{
+  "provider": "Lega Serie A public SDP feed",
+  "seasons": [
+    "2022/2023",
+    "2023/2024",
+    "2024/2025"
+  ],
+  "sample_matches": 10,
+  "requests_made": 14,
+  "modeling_data_changed": false
+}

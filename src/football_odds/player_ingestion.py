@@ -24,6 +24,18 @@ class LineupImportResult:
     requests_made: int
 
 
+@dataclass(frozen=True)
+class LineupBackfillResult:
+    eligible_fixtures: int
+    already_complete: int
+    attempted_fixtures: int
+    imported_fixtures: int
+    lineups: int
+    players: int
+    failures: tuple[dict[str, str], ...]
+    requests_made: int
+
+
 def _player_items(lineup: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     return [
         *[("starter", item) for item in lineup.get("startXI") or []],
@@ -87,9 +99,20 @@ def ingest_fixture_lineups(
 
         for lineup in lineups:
             team = lineup["team"]
+            provider_team_id = str(team.get("id") or "")
             team_row = connection.execute(
-                "SELECT team_id FROM teams WHERE team_name=?", (team["name"],)
+                """
+                SELECT internal_team_id
+                FROM provider_team_mapping
+                WHERE provider_id=? AND provider_team_id=?
+                """,
+                (provider_id, provider_team_id),
             ).fetchone()
+            if team_row is None:
+                team_row = connection.execute(
+                    "SELECT team_id FROM teams WHERE team_name=?",
+                    (team["name"],),
+                ).fetchone()
             if team_row is None:
                 raise KeyError(f"Squadra canonica non trovata: {team['name']}")
             team_id = int(team_row[0])
@@ -244,5 +267,105 @@ def import_api_football_lineups(
         fixtures=len(fixture_ids),
         lineups=total_lineups,
         players=len(total_players),
+        requests_made=active.requests_made,
+    )
+
+
+def backfill_api_football_lineups(
+    project_dir: Path,
+    *,
+    league: str = "I1",
+    seasons: tuple[str, ...] = ("2223", "2324", "2425"),
+    limit: int | None = None,
+    database_path: Path | None = None,
+    client: ApiFootballClient | None = None,
+    observed_at: str | None = None,
+) -> LineupBackfillResult:
+    """Import missing mapped lineups in chronological, safely resumable batches."""
+    if not seasons:
+        raise ValueError("Specificare almeno una stagione.")
+    if limit is not None and limit < 1:
+        raise ValueError("limit deve essere positivo.")
+    key = os.getenv("API_FOOTBALL_KEY") or load_env_value(
+        project_dir / ".env", "API_FOOTBALL_KEY"
+    )
+    active = client or ApiFootballClient(key or "")
+    database = ResearchDatabase(
+        database_path or project_dir / "data" / "football_odds.sqlite3"
+    )
+    database.initialize()
+    placeholders = ",".join("?" for _ in seasons)
+    with database.connect() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT
+                pm.provider_match_id,
+                m.match_id,
+                m.date,
+                COUNT(DISTINCT fl.team_id) AS stored_lineups
+            FROM provider_match_mapping pm
+            JOIN providers p ON p.provider_id=pm.provider_id
+            JOIN matches m ON m.match_id=pm.internal_match_id
+            JOIN leagues l ON l.league_id=m.league_id
+            LEFT JOIN fixture_lineups fl
+              ON fl.match_id=m.match_id
+             AND fl.provider_id=p.provider_id
+             AND fl.lineup_kind='confirmed_historical'
+            WHERE p.provider_name=?
+              AND l.league_code=?
+              AND m.season IN ({placeholders})
+            GROUP BY pm.provider_match_id, m.match_id, m.date
+            ORDER BY m.date, m.match_id
+            """,
+            (PROVIDER, league, *seasons),
+        ).fetchall()
+    eligible = len(rows)
+    complete = sum(int(row["stored_lineups"]) == 2 for row in rows)
+    pending = [row for row in rows if int(row["stored_lineups"]) != 2]
+    if limit is not None:
+        pending = pending[:limit]
+
+    timestamp = observed_at or datetime.now(timezone.utc).isoformat()
+    imported = 0
+    total_lineups = 0
+    players_seen: set[str] = set()
+    failures: list[dict[str, str]] = []
+    for row in pending:
+        fixture_id = str(row["provider_match_id"])
+        try:
+            payload = active.get("fixtures/lineups", fixture=fixture_id)
+            lineups, _ = ingest_fixture_lineups(
+                database,
+                provider_fixture_id=fixture_id,
+                lineups=payload,
+                observed_at=timestamp,
+            )
+        except (KeyError, RuntimeError, ValueError) as error:
+            failures.append({"fixture_id": fixture_id, "error": str(error)})
+            continue
+        imported += 1
+        total_lineups += lineups
+        with database.connect() as connection:
+            players_seen.update(
+                str(item[0])
+                for item in connection.execute(
+                    """
+                    SELECT lp.player_id
+                    FROM lineup_players lp
+                    JOIN fixture_lineups fl USING(lineup_id)
+                    WHERE fl.match_id=?
+                      AND fl.lineup_kind='confirmed_historical'
+                    """,
+                    (str(row["match_id"]),),
+                )
+            )
+    return LineupBackfillResult(
+        eligible_fixtures=eligible,
+        already_complete=complete,
+        attempted_fixtures=len(pending),
+        imported_fixtures=imported,
+        lineups=total_lineups,
+        players=len(players_seen),
+        failures=tuple(failures),
         requests_made=active.requests_made,
     )

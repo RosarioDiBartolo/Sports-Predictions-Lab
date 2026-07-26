@@ -151,6 +151,7 @@ def test_schema_contains_only_pipeline_owned_tables(tmp_path):
         "providers",
         "fixture_lineups",
         "lineup_players",
+        "player_match_lineup_stats",
         "team_memberships",
         "team_venues",
         "teams",
