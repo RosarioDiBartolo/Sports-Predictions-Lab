@@ -17,6 +17,7 @@ from .pipeline import (
     run_analysis,
     run_backfill_pipeline,
     run_baseline_pipeline,
+    run_edge_discovery_pipeline,
     run_fixture_prediction,
     run_hybrid_model_pipeline,
     run_modeling_pipeline,
@@ -24,6 +25,9 @@ from .pipeline import (
     run_sport_model_pipeline,
     run_unified_pipeline,
 )
+from .player_coverage import export_api_football_coverage
+from .player_ingestion import import_api_football_lineups
+from .player_reconciliation import LEAGUE_CODES, reconcile_api_football
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -67,6 +71,42 @@ def build_parser() -> argparse.ArgumentParser:
     hybrid_model.add_argument("--seasons", nargs="+", default=list(DEFAULT_SEASONS))
     hybrid_model.add_argument("--windows", nargs="+", type=int, default=[5, 10])
     hybrid_model.add_argument("--project-dir", type=Path, default=Path.cwd())
+    edge = subparsers.add_parser(
+        "edge-discovery",
+        help="Cerca una regola sul discovery e la valida su un holdout bloccato.",
+    )
+    edge.add_argument("--leagues", nargs="+", default=list(DEFAULT_LEAGUES))
+    edge.add_argument("--seasons", nargs="+", default=list(DEFAULT_SEASONS))
+    edge.add_argument("--windows", nargs="+", type=int, default=[5, 10])
+    edge.add_argument("--project-dir", type=Path, default=Path.cwd())
+    coverage = subparsers.add_parser(
+        "player-coverage",
+        help="Misura la copertura lineup senza modificare il modello.",
+    )
+    coverage.add_argument(
+        "--seasons", nargs="+", type=int, default=[2022, 2023, 2024]
+    )
+    coverage.add_argument("--sample-per-season", type=int, default=1)
+    coverage.add_argument("--project-dir", type=Path, default=Path.cwd())
+    player_import = subparsers.add_parser(
+        "player-import",
+        help="Importa lineup storiche API-Football per fixture già mappate.",
+    )
+    player_import.add_argument("--fixtures", nargs="+", required=True)
+    player_import.add_argument("--database", type=Path)
+    player_import.add_argument("--project-dir", type=Path, default=Path.cwd())
+    reconcile = subparsers.add_parser(
+        "player-reconcile",
+        help="Riconcilia fixture API-Football con i match canonici.",
+    )
+    reconcile.add_argument(
+        "--leagues", nargs="+", type=int, default=list(LEAGUE_CODES)
+    )
+    reconcile.add_argument(
+        "--seasons", nargs="+", type=int, default=[2022, 2023, 2024]
+    )
+    reconcile.add_argument("--database", type=Path)
+    reconcile.add_argument("--project-dir", type=Path, default=Path.cwd())
     predict = subparsers.add_parser(
         "predict",
         help="Predice fixture future senza risultato usando il modello sport-only.",
@@ -104,8 +144,9 @@ def build_parser() -> argparse.ArgumentParser:
             "market",
             "features",
             "baselines",
-            "hybrid",
             "model",
+            "hybrid",
+            "edge",
         ),
     )
     build.add_argument("--leagues", nargs="+", default=list(DEFAULT_LEAGUES))
@@ -205,6 +246,7 @@ def main() -> None:
                 ensure_ascii=False,
             )
         )
+        return
     if args.command == "hybrid-model":
         result = run_hybrid_model_pipeline(
             ModelingConfig(
@@ -229,6 +271,27 @@ def main() -> None:
             )
         )
         return
+    if args.command == "edge-discovery":
+        result = run_edge_discovery_pipeline(
+            ModelingConfig(
+                leagues=tuple(args.leagues),
+                seasons=tuple(args.seasons),
+                rolling_windows=tuple(args.windows),
+                project_dir=args.project_dir.resolve(),
+            )
+        )
+        print(
+            json.dumps(
+                {
+                    "promoted": result.promoted,
+                    "selected_rule": result.selected_rule,
+                    "report": str(result.outputs["report"]),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
     if args.command == "predict":
         project_dir = args.project_dir.resolve()
         result = run_fixture_prediction(
@@ -247,6 +310,76 @@ def main() -> None:
                 {
                     "fixtures": len(result.predictions),
                     "output": str(result.output),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "player-coverage":
+        result = export_api_football_coverage(
+            args.project_dir.resolve(),
+            seasons=tuple(args.seasons),
+            sample_per_season=args.sample_per_season,
+        )
+        print(
+            json.dumps(
+                {
+                    "requests_made": result.requests_made,
+                    "sampled_fixtures": len(result.samples),
+                    "report": str(result.outputs["report"]),
+                    "modeling_data_changed": False,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "player-import":
+        project_dir = args.project_dir.resolve()
+        result = import_api_football_lineups(
+            project_dir,
+            fixture_ids=tuple(args.fixtures),
+            database_path=args.database.resolve() if args.database else None,
+        )
+        print(
+            json.dumps(
+                {
+                    "fixtures": result.fixtures,
+                    "lineups": result.lineups,
+                    "players": result.players,
+                    "requests_made": result.requests_made,
+                    "modeling_features_changed": False,
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "player-reconcile":
+        project_dir = args.project_dir.resolve()
+        result = reconcile_api_football(
+            project_dir,
+            leagues=tuple(args.leagues),
+            seasons=tuple(args.seasons),
+            database_path=args.database.resolve() if args.database else None,
+        )
+        print(
+            json.dumps(
+                {
+                    "fixtures_seen": result.fixtures_seen,
+                    "fixtures_mapped": result.fixtures_mapped,
+                    "already_mapped": result.already_mapped,
+                    "unresolved": len(result.unresolved),
+                    "unresolved_by_reason": {
+                        reason: sum(
+                            row["reason"] == reason for row in result.unresolved
+                        )
+                        for reason in sorted(
+                            {str(row["reason"]) for row in result.unresolved}
+                        )
+                    },
+                    "requests_made": result.requests_made,
                 },
                 indent=2,
                 ensure_ascii=False,

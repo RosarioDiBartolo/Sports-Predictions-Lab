@@ -60,6 +60,72 @@ CREATE TABLE IF NOT EXISTS provider_match_mapping (
     internal_match_id TEXT NOT NULL REFERENCES matches(match_id),
     PRIMARY KEY(provider_id, provider_match_id)
 );
+CREATE TABLE IF NOT EXISTS provider_team_mapping (
+    provider_id INTEGER NOT NULL REFERENCES providers(provider_id),
+    provider_team_id TEXT NOT NULL,
+    internal_team_id INTEGER NOT NULL REFERENCES teams(team_id),
+    provider_team_name TEXT NOT NULL,
+    mapping_method TEXT NOT NULL CHECK(
+        mapping_method IN ('normalized_exact', 'manual')
+    ),
+    observed_at TEXT NOT NULL,
+    PRIMARY KEY(provider_id, provider_team_id)
+);
+CREATE TABLE IF NOT EXISTS players (
+    player_id TEXT PRIMARY KEY,
+    player_name TEXT NOT NULL,
+    date_of_birth TEXT,
+    nationality TEXT
+);
+CREATE TABLE IF NOT EXISTS provider_player_mapping (
+    provider_id INTEGER NOT NULL REFERENCES providers(provider_id),
+    provider_player_id TEXT NOT NULL,
+    internal_player_id TEXT NOT NULL REFERENCES players(player_id),
+    PRIMARY KEY(provider_id, provider_player_id)
+);
+CREATE TABLE IF NOT EXISTS team_memberships (
+    membership_id INTEGER PRIMARY KEY,
+    player_id TEXT NOT NULL REFERENCES players(player_id),
+    team_id INTEGER NOT NULL REFERENCES teams(team_id),
+    provider_id INTEGER NOT NULL REFERENCES providers(provider_id),
+    valid_from TEXT NOT NULL,
+    valid_to TEXT,
+    observed_at TEXT NOT NULL,
+    CHECK(valid_to IS NULL OR valid_to >= valid_from),
+    UNIQUE(player_id, team_id, provider_id, valid_from)
+);
+CREATE TABLE IF NOT EXISTS fixture_lineups (
+    lineup_id INTEGER PRIMARY KEY,
+    match_id TEXT NOT NULL REFERENCES matches(match_id) ON DELETE CASCADE,
+    team_id INTEGER NOT NULL REFERENCES teams(team_id),
+    provider_id INTEGER NOT NULL REFERENCES providers(provider_id),
+    formation TEXT,
+    coach_provider_id TEXT,
+    lineup_kind TEXT NOT NULL CHECK(
+        lineup_kind IN (
+            'confirmed_historical',
+            'confirmed_timestamped',
+            'predicted'
+        )
+    ),
+    observed_at TEXT NOT NULL,
+    published_at TEXT,
+    CHECK(
+        lineup_kind != 'confirmed_timestamped'
+        OR published_at IS NOT NULL
+    ),
+    UNIQUE(match_id, team_id, provider_id, lineup_kind)
+);
+CREATE TABLE IF NOT EXISTS lineup_players (
+    lineup_id INTEGER NOT NULL
+        REFERENCES fixture_lineups(lineup_id) ON DELETE CASCADE,
+    player_id TEXT NOT NULL REFERENCES players(player_id),
+    lineup_role TEXT NOT NULL CHECK(lineup_role IN ('starter', 'substitute')),
+    position TEXT,
+    formation_grid TEXT,
+    shirt_number INTEGER,
+    PRIMARY KEY(lineup_id, player_id)
+);
 CREATE TABLE IF NOT EXISTS odds (
     odds_id INTEGER PRIMARY KEY,
     match_id TEXT NOT NULL REFERENCES matches(match_id) ON DELETE CASCADE,
@@ -104,6 +170,12 @@ CREATE INDEX IF NOT EXISTS idx_odds_analysis
 ON odds(bookmaker_id, market, opening_or_closing);
 CREATE INDEX IF NOT EXISTS idx_matches_league_season
 ON matches(league_id, season);
+CREATE INDEX IF NOT EXISTS idx_provider_team_internal
+ON provider_team_mapping(provider_id, internal_team_id);
+CREATE INDEX IF NOT EXISTS idx_memberships_player_time
+ON team_memberships(player_id, valid_from, valid_to);
+CREATE INDEX IF NOT EXISTS idx_lineups_match
+ON fixture_lineups(match_id, team_id, lineup_kind);
 """
 
 
@@ -158,8 +230,42 @@ class ResearchDatabase:
         """Create only tables produced by a concrete pipeline stage."""
         with self.connect() as connection:
             connection.executescript(SCHEMA)
+            self._migrate_players_identity(connection)
             self._migrate_odds_provider(connection)
             self._migrate_match_performance(connection)
+
+    @staticmethod
+    def _migrate_players_identity(connection: sqlite3.Connection) -> None:
+        """Upgrade legacy integer player identities to canonical text UUIDs."""
+        columns = {
+            str(row["name"]): str(row["type"]).upper()
+            for row in connection.execute("PRAGMA table_info(players)").fetchall()
+        }
+        if columns.get("player_id") == "TEXT":
+            for name in ("date_of_birth", "nationality"):
+                if name not in columns:
+                    connection.execute(f"ALTER TABLE players ADD COLUMN {name} TEXT")
+            return
+
+        connection.commit()
+        connection.execute("PRAGMA foreign_keys = OFF")
+        try:
+            connection.executescript(
+                """
+                CREATE TABLE players_new (
+                    player_id TEXT PRIMARY KEY,
+                    player_name TEXT NOT NULL,
+                    date_of_birth TEXT,
+                    nationality TEXT
+                );
+                INSERT INTO players_new (player_id, player_name)
+                SELECT CAST(player_id AS TEXT), player_name FROM players;
+                DROP TABLE players;
+                ALTER TABLE players_new RENAME TO players;
+                """
+            )
+        finally:
+            connection.execute("PRAGMA foreign_keys = ON")
 
     @staticmethod
     def _migrate_match_performance(connection: sqlite3.Connection) -> None:

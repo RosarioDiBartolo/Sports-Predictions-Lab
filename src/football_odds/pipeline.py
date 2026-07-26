@@ -8,6 +8,7 @@ import pandas as pd
 
 from .config import AnalysisConfig, BackfillConfig, ModelingConfig
 from .database import ResearchDatabase
+from .edge import EdgeDiscoveryResult, export_edge_discovery
 from .features import (
     build_fixture_features,
     build_prematch_features,
@@ -218,12 +219,13 @@ def run_unified_pipeline(
         "baselines",
         "model",
         "hybrid",
+        "edge",
     }
     unknown = requested.difference(allowed)
     if unknown:
         raise ValueError(f"Target pipeline sconosciuti: {sorted(unknown)}")
     if "all" in requested:
-        requested = allowed.difference({"all", "hybrid"})
+        requested = allowed.difference({"all", "hybrid", "edge"})
 
     completed: list[str] = []
     artifacts: dict[str, Path] = {}
@@ -275,7 +277,8 @@ def run_unified_pipeline(
     )
 
     analysis_config = AnalysisConfig(project_dir=config.project_dir)
-    if requested.intersection({"analytics", "market"}):
+    analytics: pd.DataFrame | None = None
+    if requested.intersection({"analytics", "market", "edge"}):
         analytics = save_analytics_dataset(analysis_config, database)
         counts["analytics_rows"] = len(analytics)
         completed.append("analytics")
@@ -381,7 +384,7 @@ def run_unified_pipeline(
         "canonical_hash": int(pd.util.hash_pandas_object(canonical, index=False).sum()),
     }
     features: pd.DataFrame | None = None
-    if requested.intersection({"features", "baselines", "model", "hybrid"}):
+    if requested.intersection({"features", "baselines", "model", "hybrid", "edge"}):
         cached_key = None
         if feature_manifest_path.exists():
             try:
@@ -451,7 +454,8 @@ def run_unified_pipeline(
             }
         )
 
-    if "model" in requested:
+    sport_model: SportModelResult | None = None
+    if requested.intersection({"model", "edge"}):
         if features is None:
             raise RuntimeError("Il modello richiede il dataset delle feature.")
         sport_model = export_sport_model(
@@ -494,6 +498,40 @@ def run_unified_pipeline(
                 "inputs": [str(feature_path)],
                 "outputs": [str(path) for path in hybrid.outputs.values()],
                 "rows": {"predictions": len(hybrid.predictions)},
+                "status": "completed",
+            }
+        )
+
+    if "edge" in requested:
+        if features is None or analytics is None or sport_model is None:
+            raise RuntimeError("Edge discovery richiede analytics, feature e modello.")
+        edge = export_edge_discovery(
+            sport_model.predictions,
+            features,
+            analytics,
+            config.report_dir / "edge_discovery",
+        )
+        completed.append("edge")
+        counts["edge_rules_tested"] = len(edge.candidates)
+        counts["edge_holdout_bets"] = int(
+            edge.summary.loc[edge.summary["period"].eq("holdout"), "bets"].iloc[0]
+        )
+        artifacts.update(
+            {f"edge_{key}": value for key, value in edge.outputs.items()}
+        )
+        stages.append(
+            {
+                "id": "08-edge",
+                "inputs": [
+                    str(feature_path),
+                    str(artifacts["analytics"]),
+                    str(artifacts["sport_model_predictions"]),
+                ],
+                "outputs": [str(path) for path in edge.outputs.values()],
+                "rows": {
+                    "rules_tested": len(edge.candidates),
+                    "holdout_bets": counts["edge_holdout_bets"],
+                },
                 "status": "completed",
             }
         )
@@ -573,6 +611,28 @@ def run_hybrid_model_pipeline(
     )
 
 
+def run_edge_discovery_pipeline(
+    config: ModelingConfig | None = None,
+) -> EdgeDiscoveryResult:
+    """Build dependencies and evaluate one frozen edge rule on holdout seasons."""
+    config = config or ModelingConfig()
+    result = run_unified_pipeline(config, targets=("edge",))
+    edge_dir = config.report_dir / "edge_discovery"
+    rule = json.loads((edge_dir / "selected_rule.json").read_text(encoding="utf-8"))
+    return EdgeDiscoveryResult(
+        selected_rule=rule,
+        summary=pd.read_csv(edge_dir / "edge_summary.csv"),
+        season_stability=pd.read_csv(edge_dir / "edge_stability_by_season.csv"),
+        candidates=pd.read_csv(edge_dir / "discovery_candidates.csv"),
+        outputs={
+            key.removeprefix("edge_"): value
+            for key, value in result.artifacts.items()
+            if key.startswith("edge_")
+        },
+        promoted=bool(rule["promoted"]),
+    )
+
+
 def run_fixture_prediction(
     fixtures_path: Path,
     config: ModelingConfig | None = None,
@@ -631,7 +691,7 @@ def run_fixture_prediction(
     manifest["stages"] = [
         *previous_stages,
         {
-            "id": "08-predict",
+            "id": "09-predict",
             "inputs": [
                 str(fixtures_path),
                 str(model_path),

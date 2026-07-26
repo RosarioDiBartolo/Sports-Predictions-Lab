@@ -1,0 +1,9 @@
+{
+  "provider": "API-Football",
+  "seasons": [
+    2024
+  ],
+  "sample_per_season": 1,
+  "requests_made": 10,
+  "modeling_data_changed": false
+}

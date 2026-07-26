@@ -1,0 +1,19 @@
+{
+  "min_confidence": 0.65,
+  "min_edge": 0.01,
+  "min_abs_elo": 0.0,
+  "picks": "A",
+  "require_experience": false,
+  "discovery_seasons": [
+    "1920",
+    "2021",
+    "2122",
+    "2223"
+  ],
+  "holdout_seasons": [
+    "2324",
+    "2425"
+  ],
+  "rules_tested": 2010,
+  "promoted": false
+}

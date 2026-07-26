@@ -1,3 +1,4 @@
+import sqlite3
 from dataclasses import replace
 from datetime import datetime
 
@@ -143,12 +144,114 @@ def test_schema_contains_only_pipeline_owned_tables(tmp_path):
         "match_results",
         "matches",
         "odds",
+        "players",
+        "provider_player_mapping",
         "provider_match_mapping",
+        "provider_team_mapping",
         "providers",
+        "fixture_lineups",
+        "lineup_players",
+        "team_memberships",
         "team_venues",
         "teams",
         "weather_observations",
     }
+
+
+def test_player_schema_enforces_temporal_and_lineup_contracts(tmp_path):
+    database = ResearchDatabase(tmp_path / "players.sqlite3")
+    database.initialize()
+    match_id = database.upsert_match(
+        "API-Football", _match("fixture-1"), "Serie A", "Italy"
+    )
+    with database.connect() as connection:
+        provider_id = connection.execute(
+            "SELECT provider_id FROM providers WHERE provider_name='API-Football'"
+        ).fetchone()[0]
+        team_id = connection.execute(
+            "SELECT team_id FROM teams WHERE team_name='Home FC'"
+        ).fetchone()[0]
+        connection.execute(
+            "INSERT INTO players VALUES (?, ?, ?, ?)",
+            ("player-uuid", "Player One", "2000-01-01", "Italy"),
+        )
+        connection.execute(
+            "INSERT INTO provider_player_mapping VALUES (?, ?, ?)",
+            (provider_id, "123", "player-uuid"),
+        )
+        connection.execute(
+            """
+            INSERT INTO team_memberships (
+                player_id, team_id, provider_id, valid_from, observed_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            ("player-uuid", team_id, provider_id, "2024-07-01", "2025-01-01"),
+        )
+        lineup_id = connection.execute(
+            """
+            INSERT INTO fixture_lineups (
+                match_id, team_id, provider_id, formation, lineup_kind,
+                observed_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                match_id,
+                team_id,
+                provider_id,
+                "4-3-3",
+                "confirmed_historical",
+                "2026-07-25",
+            ),
+        ).lastrowid
+        connection.execute(
+            """
+            INSERT INTO lineup_players (
+                lineup_id, player_id, lineup_role, position
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (lineup_id, "player-uuid", "starter", "M"),
+        )
+        row = connection.execute(
+            """
+            SELECT fl.lineup_kind, lp.lineup_role
+            FROM fixture_lineups fl
+            JOIN lineup_players lp USING(lineup_id)
+            """
+        ).fetchone()
+    assert tuple(row) == ("confirmed_historical", "starter")
+
+
+def test_initialize_migrates_legacy_integer_player_identity(tmp_path):
+    path = tmp_path / "legacy-players.sqlite3"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE players (
+                player_id INTEGER PRIMARY KEY,
+                player_name TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO players (player_id, player_name) VALUES (7, 'Player Seven')"
+        )
+
+    ResearchDatabase(path).initialize()
+
+    with sqlite3.connect(path) as connection:
+        columns = {
+            row[1]: row[2] for row in connection.execute("PRAGMA table_info(players)")
+        }
+        row = connection.execute(
+            "SELECT player_id, player_name FROM players"
+        ).fetchone()
+    assert columns == {
+        "player_id": "TEXT",
+        "player_name": "TEXT",
+        "date_of_birth": "TEXT",
+        "nationality": "TEXT",
+    }
+    assert row == ("7", "Player Seven")
 
 
 def test_initialize_migrates_legacy_odds_with_provider_provenance(tmp_path):
