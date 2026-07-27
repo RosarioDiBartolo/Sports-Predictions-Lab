@@ -311,9 +311,10 @@ def main() -> None:
         print(
             json.dumps(
                 {
-                    "promoted": metadata["promotion"]["promoted"],
+                    "official_model": metadata["official_model"],
+                    "evaluation_gate_passed": metadata["promotion"]["promoted"],
                     "report": str(result.outputs["report"]),
-                    "official_model_unchanged": True,
+                    "retired_official_model": metadata["retired_official_model"],
                 },
                 indent=2,
                 ensure_ascii=False,
