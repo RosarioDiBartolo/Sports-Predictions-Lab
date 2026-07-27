@@ -1,5 +1,4 @@
 import json
-import sys
 
 import pandas as pd
 import pytest
@@ -172,7 +171,7 @@ def test_comparisons_reporting_and_dataset_save(tmp_path):
     assert "una quota non è una previsione certa" in dashboard
 
 
-def test_both_pipelines_and_cli(monkeypatch, tmp_path, capsys):
+def test_legacy_python_pipelines_remain_available(monkeypatch, tmp_path):
     frame = sample_frame()
     monkeypatch.setattr(
         "football_odds.pipeline.load_all_seasons", lambda *a, **k: frame
@@ -183,16 +182,14 @@ def test_both_pipelines_and_cli(monkeypatch, tmp_path, capsys):
     assert original.metrics["matches"] == 1
     assert research.ingestion.matches == 1
 
-    monkeypatch.setattr(cli, "run_analysis", lambda *a, **k: original)
-    monkeypatch.setattr(sys, "argv", ["odds-lab", "run", "--seasons", "2425"])
-    cli.main()
-    assert '"matches": 1' in capsys.readouterr().out
-
-    monkeypatch.setattr(cli, "run_research_pipeline", lambda *a, **k: research)
-    monkeypatch.setattr(sys, "argv", ["odds-lab", "research", "--seasons", "2425"])
-    cli.main()
-    output = capsys.readouterr().out
-    assert "analytics_rows" in output
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["run"])
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["research"])
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["modeling"])
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["baselines"])
 
 
 def test_unified_pipeline_runs_from_canonical_database(monkeypatch, tmp_path):

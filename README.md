@@ -34,11 +34,17 @@ odds-lab build market
 odds-lab build features
 odds-lab build baselines
 odds-lab build model
+odds-lab build hybrid
+odds-lab build edge
 odds-lab sport-model
 ```
 
 Use `--refresh` to refresh provider caches and `--rebuild-features` to ignore
 an existing feature artifact.
+
+`build all` runs the canonical production graph and deliberately excludes the
+experimental `hybrid` and `edge` targets. Run those targets explicitly when
+evaluating a candidate model or a frozen betting rule.
 
 Predict a target-free fixture file after training the model:
 
