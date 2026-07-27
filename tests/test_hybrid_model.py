@@ -70,14 +70,16 @@ def test_hybrid_models_home_and_away_goals_separately():
     np.testing.assert_allclose(probabilities.sum(axis=1), 1.0)
 
 
-def test_hybrid_export_runs_same_gate_without_replacing_official(tmp_path):
+def test_hybrid_export_is_official_and_keeps_evaluation_evidence(tmp_path):
     result = export_hybrid_model(_features(), tmp_path)
     metadata = __import__("json").loads(
         result.outputs["metadata"].read_text(encoding="utf-8")
     )
     assert result.outputs["model"].exists()
     assert result.outputs["report"].exists()
-    assert metadata["official_model_unchanged"] is True
+    assert metadata["official_model"] is True
+    assert metadata["official_selection"] == "explicit_project_decision"
+    assert metadata["retired_official_model"] == "sport_gradient_boosting"
     assert "promotion" in metadata
     assert result.outputs["player_ablation_metrics"].exists()
     assert result.outputs["player_ablation_summary"].exists()

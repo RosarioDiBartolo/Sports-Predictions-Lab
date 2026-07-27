@@ -35,6 +35,7 @@ from .models import (
 )
 
 HYBRID_MODEL_NAME = "dixon_coles_gradient_boosting"
+OFFICIAL_MODEL_NAME = HYBRID_MODEL_NAME
 HYBRID_WITH_PLAYERS = HYBRID_MODEL_NAME
 HYBRID_WITHOUT_PLAYERS = f"{HYBRID_MODEL_NAME}_without_players"
 GOAL_IDENTITY_FEATURES = ("home_team", "away_team", "league")
@@ -294,7 +295,7 @@ def export_hybrid_model(
     features: pd.DataFrame,
     destination: Path,
 ) -> SportModelResult:
-    """Persist the hybrid candidate and evidence against the official model."""
+    """Persist the official hybrid and its evidence against the retired model."""
     destination.mkdir(parents=True, exist_ok=True)
     metrics, predictions = walk_forward_hybrid_model(features)
     metrics_without_players, predictions_without_players = (
@@ -364,7 +365,9 @@ def export_hybrid_model(
     metadata = {
         "model_name": HYBRID_MODEL_NAME,
         "algorithm": "Dixon-Coles + PoissonRegressor + HistGradientBoostingClassifier",
-        "official_model_unchanged": True,
+        "official_model": True,
+        "official_selection": "explicit_project_decision",
+        "retired_official_model": "sport_gradient_boosting",
         "goal_weight": predictor.goal_weight,
         "rho": predictor.rho,
         "trained_seasons": list(predictor.trained_seasons),
@@ -382,10 +385,11 @@ def export_hybrid_model(
         encoding="utf-8",
     )
     lines = [
-        "# Candidato ibrido Dixon–Coles + gradient boosting",
+        "# Modello ufficiale Dixon–Coles + gradient boosting",
         "",
-        "Il modello ufficiale resta `sport_gradient_boosting`. Il candidato è "
-        "promuovibile solo dal gate walk-forward.",
+        "Questo è il modello ufficiale per decisione esplicita di progetto. "
+        "Il precedente `sport_gradient_boosting` resta una baseline interna "
+        "perché è anche una componente dell'ibrido.",
         "",
         "## Confronto fuori campione",
         "",
