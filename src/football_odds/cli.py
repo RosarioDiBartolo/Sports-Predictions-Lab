@@ -4,12 +4,15 @@ import argparse
 import json
 from pathlib import Path
 
+import pandas as pd
+
 from .config import (
     DEFAULT_LEAGUES,
     DEFAULT_SEASONS,
     BackfillConfig,
     ModelingConfig,
 )
+from .confirmed_lineup import export_confirmed_lineup_model
 from .database import ResearchDatabase
 from .enrichment import run_environment_enrichment
 from .pipeline import (
@@ -49,6 +52,17 @@ def build_parser() -> argparse.ArgumentParser:
     hybrid_model.add_argument("--seasons", nargs="+", default=list(DEFAULT_SEASONS))
     hybrid_model.add_argument("--windows", nargs="+", type=int, default=[5, 10])
     hybrid_model.add_argument("--project-dir", type=Path, default=Path.cwd())
+    lineup_model = subparsers.add_parser(
+        "confirmed-lineup-model",
+        help="Valuta Dixon-Coles + correzione regolarizzata della lineup ufficiale.",
+    )
+    lineup_model.add_argument(
+        "--features",
+        type=Path,
+        help="CSV leakage-safe con feature *_confirmed_lineup_*.",
+    )
+    lineup_model.add_argument("--alpha", type=float, default=25.0)
+    lineup_model.add_argument("--project-dir", type=Path, default=Path.cwd())
     edge = subparsers.add_parser(
         "edge-discovery",
         help="Cerca una regola sul discovery e la valida su un holdout bloccato.",
@@ -247,6 +261,34 @@ def main() -> None:
                         if "model" in result.outputs
                         else None
                     ),
+                    "report": str(result.outputs["report"]),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    if args.command == "confirmed-lineup-model":
+        project_dir = args.project_dir.resolve()
+        feature_path = args.features or (
+            project_dir / "data" / "processed" / "confirmed_lineup_features.csv"
+        )
+        if not feature_path.is_absolute():
+            feature_path = project_dir / feature_path
+        result = export_confirmed_lineup_model(
+            pd.read_csv(feature_path),
+            project_dir / "reports" / "modeling" / "confirmed_lineup_model",
+            alpha=args.alpha,
+        )
+        metadata = json.loads(
+            result.outputs["metadata"].read_text(encoding="utf-8")
+        )
+        print(
+            json.dumps(
+                {
+                    "oos_predictions": len(result.predictions),
+                    "promoted": metadata["promotion"]["promoted"],
+                    "official_model_unchanged": True,
                     "report": str(result.outputs["report"]),
                 },
                 indent=2,
