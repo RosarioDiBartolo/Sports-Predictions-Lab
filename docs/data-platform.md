@@ -38,6 +38,24 @@ snapshot timestamp. Decimal odds as published are preserved. Normalized
 probabilities and margins should be versioned transformations or views unless
 materialization has a measured justification.
 
+Historical Football-Data opening and closing labels have no verifiable
+availability timestamp and are not eligible for cutoff-sensitive evaluation.
+Prospective API-Football 1X2 collections preserve the provider `update`
+timestamp, local UTC acquisition time, raw response checksum and normalized
+selection rows under `data/raw/api_football_odds/`. These snapshots become
+eligible only after reconciliation to a canonical fixture and validation that
+their timestamp is not later than the prediction cutoff.
+
+The CC BY-SA 4.0 BeatTheBookie hourly series is the historical cutoff-valid
+source for the active gated comparison. Raw compressed files remain under
+`data/raw/beat_the_bookie/`. Reconciliation requires the same calendar date and
+final score plus high-confidence home/away team-name similarity with an
+unambiguous runner-up margin. Rejected candidates are quarantined. The accepted
+snapshot is the complete bookmaker H/D/A triplet sampled one hour before the
+UTC kickoff; bookmaker identity follows the source generator's published
+32-row mapping. The reconciled rows and immutable input checksums are recorded
+in `reconciled_cutoff_snapshot.csv` and its manifest.
+
 ## Governance target
 
 The canonical v2 design includes source assets, data releases, quarantine,

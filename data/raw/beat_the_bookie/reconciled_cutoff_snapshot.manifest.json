@@ -1,0 +1,50 @@
+{
+  "provider": "BeatTheBookie",
+  "license": "CC BY-SA 4.0",
+  "source": "https://www.kaggle.com/datasets/austro/beat-the-bookie-worldwide-football-dataset",
+  "generated_at": "2026-07-28T16:44:32.290679+00:00",
+  "snapshot_index": 70,
+  "snapshot_hours_before_kickoff": 1,
+  "canonical_matches_reconciled": 1530,
+  "complete_match_bookmaker_markets": 36127,
+  "rows": 108381,
+  "quarantined_mappings": 429,
+  "inputs": [
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\modeling_features_all.csv",
+      "bytes": 17665523,
+      "sha256": "ec301f01533c21bd38d881c26d6210507cb823aebec4f3afdd53c05fc43cc325"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\player_training_ready.csv",
+      "bytes": 190560034,
+      "sha256": "9073c36cc63351ee88cae317d36a473d7abae40b559cfc64c49705c1d65cbad6"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\raw\\beat_the_bookie\\closing_odds.csv.gz",
+      "bytes": 19457496,
+      "sha256": "4759597876175342a5919a5286a8300b86c35ad3416de39f09beda83a510a76a"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\raw\\beat_the_bookie\\odds_series.csv.gz",
+      "bytes": 22306334,
+      "sha256": "cc6e0ad9b818d9d8a06e857d65d8dd8f32d8d7a21d9b9b49a5c27d4e9eb1c722"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\raw\\beat_the_bookie\\odds_series_b.csv.gz",
+      "bytes": 43789920,
+      "sha256": "3d24e8c8021559b03afa17194a3748929e48b27311fea5da045e7f0040c957c5"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\raw\\beat_the_bookie\\odds_series_b_matches.csv.gz",
+      "bytes": 1804654,
+      "sha256": "f0775b93eb7b84ecfefd75e7b2589b21ad8024bb81dd39378b398f5e82497cc0"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\raw\\beat_the_bookie\\odds_series_matches.csv.gz",
+      "bytes": 1074970,
+      "sha256": "17953204e497afcc3365bfdcc54a24bd1568be1c2a06b520e7b105a65035a26e"
+    }
+  ],
+  "output_sha256": "6237820539c5efe5cacee260791e0c434399137bf05124d208114e80e8d42638"
+}

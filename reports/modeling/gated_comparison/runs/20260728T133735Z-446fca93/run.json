@@ -1,0 +1,12 @@
+{
+  "run_id": "20260728T133735Z-446fca93",
+  "status": "failed",
+  "phase": "preflight",
+  "started_at": "2026-07-28T13:37:43.821342+00:00",
+  "latest_heartbeat": "2026-07-28T13:37:43.821342+00:00",
+  "models": [
+    "dixon_coles_shared_encoder_pooling_gated",
+    "dixon_coles_gated_tabular_residual"
+  ],
+  "ended_at": "2026-07-28T13:37:43.830323+00:00"
+}

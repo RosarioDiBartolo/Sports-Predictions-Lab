@@ -1,0 +1,122 @@
+{
+  "run_id": "20260728T133735Z-446fca93",
+  "created_at": "2026-07-28T13:37:43.788111+00:00",
+  "passed": false,
+  "inputs": [
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\modeling_features_all.csv",
+      "bytes": 17665523,
+      "sha256": "ec301f01533c21bd38d881c26d6210507cb823aebec4f3afdd53c05fc43cc325"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\player_training_ready.csv",
+      "bytes": 190560034,
+      "sha256": "9073c36cc63351ee88cae317d36a473d7abae40b559cfc64c49705c1d65cbad6"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\player_match_temporal_features.csv",
+      "bytes": 474891668,
+      "sha256": "40dc93908af0a5afbfe9291de0a67064ab8491b50f0b6b8510d83ff676330e25"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\raw\\api_football_odds\\2026-07-28-20260728T133444102091Z.csv",
+      "bytes": 138615,
+      "sha256": "687a01bac9228f9c98e90d3898038fd562157ab2745884a32834a56a44e22bae"
+    }
+  ],
+  "dataset_version": "ec301f01533c21bd38d881c26d6210507cb823aebec4f3afdd53c05fc43cc325",
+  "models": [
+    "dixon_coles_shared_encoder_pooling_gated",
+    "dixon_coles_gated_tabular_residual"
+  ],
+  "ablations": [
+    "base",
+    "feature_store",
+    "bench",
+    "combined"
+  ],
+  "config": {
+    "epochs": 80,
+    "embedding_dim": 32,
+    "seed": 42,
+    "python": "3.12.13"
+  },
+  "checks": [
+    {
+      "name": "input_exists:matches",
+      "passed": true,
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\modeling_features_all.csv"
+    },
+    {
+      "name": "input_exists:lineups",
+      "passed": true,
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\player_training_ready.csv"
+    },
+    {
+      "name": "input_exists:temporal",
+      "passed": true,
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\player_match_temporal_features.csv"
+    },
+    {
+      "name": "lineups",
+      "passed": true,
+      "matches": 26670,
+      "invalid_team_lineups": 0,
+      "team_lineups_with_duplicate_players": 0
+    },
+    {
+      "name": "match_schema",
+      "passed": true,
+      "missing_columns": []
+    },
+    {
+      "name": "unique_match_ids",
+      "passed": true,
+      "duplicates": 0
+    },
+    {
+      "name": "no_infinite_match_values",
+      "passed": true,
+      "nan_values": 736288
+    },
+    {
+      "name": "target_distribution",
+      "passed": true,
+      "counts": {
+        "H": 12724,
+        "A": 8448,
+        "D": 7161
+      }
+    },
+    {
+      "name": "temporal_folds",
+      "passed": true,
+      "seasons": [
+        "1011",
+        "1112",
+        "1213",
+        "1314",
+        "1415",
+        "1516",
+        "1617",
+        "1718",
+        "1819",
+        "1920",
+        "2021",
+        "2122",
+        "2223",
+        "2324",
+        "2425"
+      ],
+      "eligible_matches": 26670
+    },
+    {
+      "name": "bookmaker_snapshot_at_cutoff",
+      "passed": false,
+      "snapshot": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\raw\\api_football_odds\\2026-07-28-20260728T133444102091Z.csv",
+      "timestamped_rows": 1010,
+      "eligible_match_overlap": 0,
+      "required": "reconciled H/D/A snapshot timestamped at or before cutoff"
+    }
+  ]
+}

@@ -29,6 +29,20 @@ def build_parser() -> argparse.ArgumentParser:
     command = model.add_parser("train")
     command.add_argument("--epochs", type=int, default=80)
     command.add_argument("--embedding-dim", type=int, default=32)
+    compare = model.add_parser("compare")
+    compare.add_argument("--epochs", type=int, default=80)
+    compare.add_argument("--embedding-dim", type=int, default=32)
+    compare.add_argument("--max-iter", type=int, default=100)
+    compare.add_argument("--seed", type=int, default=42)
+    compare.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
+    compare.add_argument("--candidate", action="append", dest="candidates")
+    compare.add_argument("--ablation", action="append", dest="ablations")
+    compare.add_argument("--run-root", type=Path)
+    bundle = model.add_parser("bundle")
+    bundle.add_argument("--preflight", type=Path, required=True)
+    bundle.add_argument("--output-dir", type=Path, required=True)
+    verify = model.add_parser("verify-bundle")
+    verify.add_argument("--bundle-dir", type=Path, required=True)
     evaluate = model.add_parser("evaluate")
     evaluate.add_argument("--predictions", type=Path, required=True)
     evaluate.add_argument("--reference", type=Path, required=True)
@@ -95,6 +109,26 @@ def _model(project: Path, epochs: int, embedding_dim: int) -> None:
     run_training(project, epochs=epochs, embedding_dim=embedding_dim)
 
 
+def _compare(project: Path, args: argparse.Namespace) -> None:
+    from ..modeling.candidate_experiment import (
+        ABLATIONS,
+        CANDIDATE_NAMES,
+        run_candidate_experiment,
+    )
+
+    run_candidate_experiment(
+        project,
+        epochs=args.epochs,
+        embedding_dim=args.embedding_dim,
+        max_iter=args.max_iter,
+        seed=args.seed,
+        device=args.device,
+        candidates=tuple(args.candidates or CANDIDATE_NAMES),
+        ablations=tuple(args.ablations or ABLATIONS),
+        run_root=args.run_root,
+    )
+
+
 def main() -> None:
     args = build_parser().parse_args()
     project = args.project_dir.resolve()
@@ -114,6 +148,16 @@ def main() -> None:
         _market(project)
     elif args.command == "model" and args.action == "train":
         _model(project, args.epochs, args.embedding_dim)
+    elif args.command == "model" and args.action == "compare":
+        _compare(project, args)
+    elif args.command == "model" and args.action == "bundle":
+        from ..modeling.training_bundle import create_training_bundle
+
+        create_training_bundle(project, args.preflight, args.output_dir)
+    elif args.command == "model" and args.action == "verify-bundle":
+        from ..modeling.training_bundle import verify_training_bundle
+
+        verify_training_bundle(args.bundle_dir)
     elif args.command == "model" and args.action == "evaluate":
         from ..modeling.frozen_evaluation import evaluate_frozen
 

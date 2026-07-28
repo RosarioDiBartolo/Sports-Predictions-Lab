@@ -794,6 +794,7 @@ class NeuralLineupPredictor:
     feature_scale: np.ndarray
     embedding_dim: int
     maximum_log_correction: float
+    device: str = "cpu"
 
     def corrections(
         self,
@@ -806,13 +807,18 @@ class NeuralLineupPredictor:
         normalized = (players - self.feature_mean) / self.feature_scale
         normalized_bench = (bench_players - self.feature_mean) / self.feature_scale
         self.model.eval()
+        device = torch.device(self.device)
         with torch.no_grad():
             result = self.model(
-                torch.as_tensor(normalized, dtype=torch.float32),
-                torch.as_tensor(departments, dtype=torch.long),
-                torch.as_tensor(normalized_bench, dtype=torch.float32),
-                torch.as_tensor(bench_departments, dtype=torch.long),
-                torch.as_tensor(bench_mask, dtype=torch.float32),
+                torch.as_tensor(normalized, dtype=torch.float32, device=device),
+                torch.as_tensor(departments, dtype=torch.long, device=device),
+                torch.as_tensor(
+                    normalized_bench, dtype=torch.float32, device=device
+                ),
+                torch.as_tensor(
+                    bench_departments, dtype=torch.long, device=device
+                ),
+                torch.as_tensor(bench_mask, dtype=torch.float32, device=device),
             )
         return result.cpu().numpy()
 
@@ -833,6 +839,7 @@ def fit_neural_lineup_encoder(
     early_stopping_patience: int = 5,
     early_stopping_min_delta: float = 1e-3,
     seed: int = 42,
+    device: str = "cpu",
 ) -> NeuralLineupPredictor:
     if len(players) != len(targets) or not len(players):
         raise ValueError("Training neurale vuoto o disallineato.")
@@ -853,6 +860,11 @@ def fit_neural_lineup_encoder(
             dtype=np.float32,
         )
     torch.manual_seed(seed)
+    selected_device = torch.device(device)
+    if selected_device.type == "cuda" and not torch.cuda.is_available():
+        raise ValueError("CUDA requested but unavailable.")
+    if selected_device.type == "cuda":
+        torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     flat = players.reshape(-1, players.shape[-1])
     valid_bench = bench_players[bench_mask.astype(bool)]
@@ -883,7 +895,7 @@ def fit_neural_lineup_encoder(
     model = SharedPlayerEncoder(
         players.shape[-1],
         embedding_dim=embedding_dim,
-    )
+    ).to(selected_device)
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=learning_rate,
@@ -904,6 +916,12 @@ def fit_neural_lineup_encoder(
             batch_bench_mask,
             batch_targets,
         ) in loader:
+            batch_players = batch_players.to(selected_device)
+            batch_departments = batch_departments.to(selected_device)
+            batch_bench_players = batch_bench_players.to(selected_device)
+            batch_bench_departments = batch_bench_departments.to(selected_device)
+            batch_bench_mask = batch_bench_mask.to(selected_device)
+            batch_targets = batch_targets.to(selected_device)
             optimizer.zero_grad()
             loss = loss_function(
                 model(
@@ -934,6 +952,7 @@ def fit_neural_lineup_encoder(
         feature_scale=scale,
         embedding_dim=embedding_dim,
         maximum_log_correction=model.maximum_log_correction,
+        device=str(selected_device),
     )
 
 

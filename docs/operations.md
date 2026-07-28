@@ -30,6 +30,55 @@ run directory with fresh heartbeats. They must fail before model initialization
 when the preflight is invalid. Agents monitor `run.json` and `events.jsonl`;
 console output alone is not sufficient evidence of progress.
 
+The gated comparison runner writes immutable runs below
+`reports/modeling/gated_comparison/runs/<run_id>/`. It evaluates the neural and
+tabular residual candidates across the same four feature ablations only after
+the common preflight passes. Prospective bookmaker snapshots must first be
+reconciled to canonical matches and be available no later than the prediction
+cutoff; an unreconciled or non-overlapping snapshot fails closed.
+The historical BeatTheBookie reconciliation is run through
+`football_odds.market.historical_snapshots.reconcile_beat_the_bookie`. It emits
+only complete H/D/A markets one hour before kickoff, preserves ambiguous
+mappings in `data/raw/beat_the_bookie/reconciliation_quarantine.csv`, and writes
+the accepted snapshot plus checksum manifest beside the raw source.
+
+## Remote candidate training
+
+Remote training uses a tested Git commit and a portable bundle created only
+from an immutable successful preflight:
+
+```text
+odds-lab --project-dir <project> model bundle \
+  --preflight <successful-preflight.json> \
+  --output-dir <new-bundle-directory>
+```
+
+The bundle preserves project-relative input paths and records byte sizes and
+SHA-256 checksums in `training_bundle.manifest.json`. Verify it after transfer:
+
+```text
+odds-lab model verify-bundle --bundle-dir <bundle-directory>
+```
+
+`notebooks/03_gated_comparison_colab.ipynb` mounts Google Drive, clones the
+repository at an explicit commit, verifies the bundle and starts one selected
+candidate/ablation. Run outputs and heartbeats are written directly to Drive.
+Every invocation performs a fresh immutable preflight; a previously accepted
+preflight authorizes bundling but is not reused to bypass this check.
+
+The comparison command is:
+
+```text
+odds-lab --project-dir <bundle-directory> model compare \
+  --candidate dixon_coles_shared_encoder_pooling_gated \
+  --ablation base --epochs 10 --max-iter 20 --device cuda \
+  --run-root <persistent-run-directory>
+```
+
+Repeat `--candidate` or `--ablation` to select multiple stages. CUDA applies
+only to the neural candidate; the scikit-learn tabular challenger remains
+CPU-only. The default device is CPU, preserving local deterministic behavior.
+
 ## Artifacts
 
 Canonical database: `data/football_odds.sqlite3`.

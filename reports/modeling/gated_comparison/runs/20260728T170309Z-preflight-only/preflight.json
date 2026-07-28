@@ -1,0 +1,265 @@
+{
+  "run_id": "20260728T170309Z-preflight-only",
+  "created_at": "2026-07-28T17:03:44.149230+00:00",
+  "passed": true,
+  "inputs": [
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\modeling_features_all.csv",
+      "bytes": 17665523,
+      "sha256": "ec301f01533c21bd38d881c26d6210507cb823aebec4f3afdd53c05fc43cc325"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\player_training_ready.csv",
+      "bytes": 190560034,
+      "sha256": "9073c36cc63351ee88cae317d36a473d7abae40b559cfc64c49705c1d65cbad6"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\player_match_temporal_features.csv",
+      "bytes": 474891668,
+      "sha256": "40dc93908af0a5afbfe9291de0a67064ab8491b50f0b6b8510d83ff676330e25"
+    },
+    {
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\raw\\beat_the_bookie\\reconciled_cutoff_snapshot.csv",
+      "bytes": 24800157,
+      "sha256": "6237820539c5efe5cacee260791e0c434399137bf05124d208114e80e8d42638"
+    }
+  ],
+  "dataset_version": "ec301f01533c21bd38d881c26d6210507cb823aebec4f3afdd53c05fc43cc325",
+  "models": [
+    "dixon_coles_shared_encoder_pooling_gated",
+    "dixon_coles_gated_tabular_residual"
+  ],
+  "ablations": [
+    "base",
+    "feature_store",
+    "bench",
+    "combined"
+  ],
+  "config": {
+    "epochs": 80,
+    "embedding_dim": 32,
+    "seed": 42,
+    "python": "3.12.13",
+    "numpy": "2.5.1",
+    "pandas": "3.0.5",
+    "scikit_learn": "1.9.0",
+    "torch": "2.13.0+cpu",
+    "estimated_candidate_fits": 8
+  },
+  "folds": [
+    {
+      "test_season": "1011",
+      "train_matches": 0,
+      "test_matches": 1720,
+      "train_match_ids_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "test_match_ids_sha256": "9731569daab004df1237fba6395cd20a0c501d4a2c7b508db8f7361f30672ffc"
+    },
+    {
+      "test_season": "1112",
+      "train_matches": 1720,
+      "test_matches": 1751,
+      "train_match_ids_sha256": "9731569daab004df1237fba6395cd20a0c501d4a2c7b508db8f7361f30672ffc",
+      "test_match_ids_sha256": "6938340f49f3b463b16f67a8251f3e44823c0d992f118c9d2fc4d2a112016918"
+    },
+    {
+      "test_season": "1213",
+      "train_matches": 3471,
+      "test_matches": 1784,
+      "train_match_ids_sha256": "d6e0699188f0aa0f2b58cde013874b0e9110dcaafb62195108608537af25b60f",
+      "test_match_ids_sha256": "beccf9eb2198cb7baf9915cdddb66f042a0a29c4c0b5e70f4554be5c1de99944"
+    },
+    {
+      "test_season": "1314",
+      "train_matches": 5255,
+      "test_matches": 1781,
+      "train_match_ids_sha256": "757d35725288f88cb10495b03fdee778c343e19d0ea57fb0e02324d12edde7f0",
+      "test_match_ids_sha256": "c1f5aec65eb6cd21ee0b8d757b3a27bdbcd0d47b12ff31ad1894e94fbfb341e3"
+    },
+    {
+      "test_season": "1415",
+      "train_matches": 7036,
+      "test_matches": 1749,
+      "train_match_ids_sha256": "0f53df74d9fe2e41aa7ebadb6b8064215b47bf9033fac6cce5dbd0f187e8540d",
+      "test_match_ids_sha256": "27033c4cf9b3dd8a25dd354fd223b3f1f10aeb399a5735856d5c0cbef2cd0593"
+    },
+    {
+      "test_season": "1516",
+      "train_matches": 8785,
+      "test_matches": 1719,
+      "train_match_ids_sha256": "79eb06369e9931f462a08a94e5f76ebbef2e70bb34a7b12a1fc26e309704f25c",
+      "test_match_ids_sha256": "5472cdcd60e91e978f7e8c4847c2a5d1242cb1d402237cf3ab1484c174bf7b17"
+    },
+    {
+      "test_season": "1617",
+      "train_matches": 10504,
+      "test_matches": 1818,
+      "train_match_ids_sha256": "b932b722eb5b0c3dd256f2e30c92ed98f2216509074d9ff40974e008d5620adb",
+      "test_match_ids_sha256": "d7a9eb496b09fc49b9b88f04268cf9a156e1a59435c3022b1d136625f4a4aa8f"
+    },
+    {
+      "test_season": "1718",
+      "train_matches": 12322,
+      "test_matches": 1815,
+      "train_match_ids_sha256": "6701826f8ec7d778cbee9f7b127d1441134f4b256e3cc64ad6e8b8e260dcfae1",
+      "test_match_ids_sha256": "a2ab5c764acb0a8637c2a7b68594c1d88bcf9d1680e7a9181e0245e717661355"
+    },
+    {
+      "test_season": "1819",
+      "train_matches": 14137,
+      "test_matches": 1826,
+      "train_match_ids_sha256": "49b6ebb2ef169c437de2645e47f3f311e115a43daa62f6874389c4dc23481142",
+      "test_match_ids_sha256": "1054b9c7eeb33e8632920eeb46370bc68f2e115b535b6cdb0aaa404fac2d520a"
+    },
+    {
+      "test_season": "1920",
+      "train_matches": 15963,
+      "test_matches": 1725,
+      "train_match_ids_sha256": "afdd5ca84278229ac84fdebec03abef09039ad2bde9a2855ca8543f477b18783",
+      "test_match_ids_sha256": "a039db58af472f4b4ec65df6800f598c8d4009908b7e1172b743eedea2b1e8d2"
+    },
+    {
+      "test_season": "2021",
+      "train_matches": 17688,
+      "test_matches": 1826,
+      "train_match_ids_sha256": "8782419d383fabc708be6fcd15dabb1046bbfb937ebdf22d03f53b95ddf063ee",
+      "test_match_ids_sha256": "ab18f1e04f1721b265bfb7551db48bfc64926a110bbe526f3683c9627a9e409b"
+    },
+    {
+      "test_season": "2122",
+      "train_matches": 19514,
+      "test_matches": 1826,
+      "train_match_ids_sha256": "6de8faecf5bb7085e99d43e095d85edbd3b606dbe33a8dc43d733cca1f26bdcf",
+      "test_match_ids_sha256": "bec2c115c9ed80e57059ad615ed5ad7daf416da440ef278e883273d185d3c9a8"
+    },
+    {
+      "test_season": "2223",
+      "train_matches": 21340,
+      "test_matches": 1826,
+      "train_match_ids_sha256": "b2bf423ec73a3d8e2f05cb97120a29a904c9a81496f7eab0edaf182efa37f29e",
+      "test_match_ids_sha256": "d6ab17a4a8843ea0fddabd33ae9754449d63fc45e33206fd7762411360253dce"
+    },
+    {
+      "test_season": "2324",
+      "train_matches": 23166,
+      "test_matches": 1752,
+      "train_match_ids_sha256": "295d274a2a09eb483bf3dbc333f4750b6928e068cf046fd26d90f5ab2623f5da",
+      "test_match_ids_sha256": "374c251262bc34036ee260089337c2ac089a93c7879b13b5e5175ab4bdfe0013"
+    },
+    {
+      "test_season": "2425",
+      "train_matches": 24918,
+      "test_matches": 1752,
+      "train_match_ids_sha256": "d22a03339d62fd563859653790af99b51728c167f360b87630ebbcb66958d935",
+      "test_match_ids_sha256": "16ce26d0e8133a87f21be201bf3dd2fe0c908b1aa6372018501836c9aefc2568"
+    }
+  ],
+  "checks": [
+    {
+      "name": "input_exists:matches",
+      "passed": true,
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\modeling_features_all.csv"
+    },
+    {
+      "name": "input_exists:lineups",
+      "passed": true,
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\player_training_ready.csv"
+    },
+    {
+      "name": "input_exists:temporal",
+      "passed": true,
+      "path": "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\processed\\player_match_temporal_features.csv"
+    },
+    {
+      "name": "lineups",
+      "passed": true,
+      "matches": 26670,
+      "invalid_team_lineups": 0,
+      "team_lineups_with_duplicate_players": 0
+    },
+    {
+      "name": "match_schema",
+      "passed": true,
+      "missing_columns": []
+    },
+    {
+      "name": "unique_match_ids",
+      "passed": true,
+      "duplicates": 0
+    },
+    {
+      "name": "no_infinite_match_values",
+      "passed": true,
+      "nan_values": 736288
+    },
+    {
+      "name": "target_distribution",
+      "passed": true,
+      "counts": {
+        "H": 12724,
+        "A": 8448,
+        "D": 7161
+      }
+    },
+    {
+      "name": "temporal_folds",
+      "passed": true,
+      "seasons": [
+        "1011",
+        "1112",
+        "1213",
+        "1314",
+        "1415",
+        "1516",
+        "1617",
+        "1718",
+        "1819",
+        "1920",
+        "2021",
+        "2122",
+        "2223",
+        "2324",
+        "2425"
+      ],
+      "eligible_matches": 26670
+    },
+    {
+      "name": "temporal_feature_store",
+      "passed": true,
+      "rows": 487175,
+      "unique_match_player_team_keys": 487175,
+      "duplicate_keys": 0,
+      "orphan_rows": 0,
+      "invalid_identifiers": 0,
+      "invalid_kickoffs": 0,
+      "availability_rate": 0.965976405923037,
+      "fallback_counts": {
+        "none": 4833936,
+        "unknown_without_timing": 1461525,
+        "starter_90": 37814,
+        "not_contract": 974350,
+        "unknown": 487175,
+        "department": 974350
+      },
+      "quality_counts": {
+        "reported": 4833936,
+        "derived": 2435875,
+        "proxy": 37814,
+        "observed_interval": 974350,
+        "observed": 487175,
+        "normalized": 487175
+      }
+    },
+    {
+      "name": "bookmaker_snapshot_at_cutoff",
+      "passed": true,
+      "snapshots": [
+        "C:\\Users\\marco\\Documents\\Sports Predictions Lab\\data\\raw\\beat_the_bookie\\reconciled_cutoff_snapshot.csv"
+      ],
+      "timestamped_rows": 108381,
+      "cutoff_valid_rows": 108381,
+      "complete_match_bookmaker_markets": 36127,
+      "eligible_match_overlap": 1530,
+      "required": "reconciled H/D/A snapshot timestamped at or before cutoff"
+    }
+  ]
+}

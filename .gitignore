@@ -29,3 +29,4 @@ reports/research/
 .coverage
 .pytest-tmp/
 data/cache
+data/training_bundles/

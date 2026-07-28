@@ -96,6 +96,12 @@ random seeds and evaluation artifacts. The current official neural artifact is
 not overwritten during experimentation. The tabular candidate is diagnostic
 and does not become operational merely by outperforming one neural run.
 
+The comparison may execute remotely one candidate/ablation at a time. Each
+remote stage must use the same checksum-verified dataset bundle and tested code
+commit, and must independently pass the common preflight. Selecting CUDA changes
+only the neural compute device, not folds, inputs, targets, seeds or evaluation
+contracts.
+
 ## Temporal guarantees
 
 - Current-match results and performance never enter pre-kickoff features.
