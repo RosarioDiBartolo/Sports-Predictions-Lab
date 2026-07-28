@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import sqlite3
 import unicodedata
 import uuid
@@ -56,6 +57,7 @@ class EuropeanFootballGamesImportResult:
     roles_from_slot: int
     matches_reconciled: int
     reconciliation_unresolved: int
+    ambiguous_player_identities: int
 
 
 def _normalized(value: str) -> str:
@@ -246,6 +248,40 @@ def import_european_football_games(
             if row["season"] in seasons and row["league"] in LEAGUES
         ]
 
+    player_teams: dict[str, set[str]] = {}
+    for row in rows:
+        for side in ("home", "away"):
+            team = row[f"{side} name"].strip()
+            for slot in range(11):
+                name = row.get(f"{side} player {slot}", "").strip()
+                if name:
+                    player_teams.setdefault(_normalized(name), set()).add(team)
+    ambiguous = {name for name, teams in player_teams.items() if len(teams) > 1}
+    quarantine: list[dict[str, object]] = []
+    for row in rows:
+        league_code = LEAGUES[row["league"]][0]
+        fixture_id = (
+            f"{row['season']}:{league_code}:{row['date']}:"
+            f"{_normalized(row['home name'])}:{_normalized(row['away name'])}"
+        )
+        for side in ("home", "away"):
+            team = row[f"{side} name"].strip()
+            for slot in range(11):
+                name = row.get(f"{side} player {slot}", "").strip()
+                normalized = _normalized(name)
+                if normalized in ambiguous:
+                    quarantine.append(
+                        {
+                            "provider": PROVIDER,
+                            "fixture_id": fixture_id,
+                            "player_name": name,
+                            "normalized_name": normalized,
+                            "team": team,
+                            "teams": sorted(player_teams[normalized]),
+                            "reason": "ambiguous_player_identity",
+                        }
+                    )
+
     database = ResearchDatabase(
         database_path or project_dir / "data" / "football_odds.sqlite3"
     )
@@ -310,7 +346,7 @@ def import_european_football_games(
                 for side in ("home", "away")
                 for slot in range(11)
             ]
-            if any(not name for name in names) or len(set(names)) != 22:
+            if any(not name for name in names):
                 incomplete += 1
                 continue
             home_name = row["home name"].strip()
@@ -394,6 +430,25 @@ def import_european_football_games(
                         observed_at,
                     ),
                 )
+            fixture_ambiguous = []
+            for side, team_name in (("home", home_name), ("away", away_name)):
+                for slot in range(11):
+                    name = row[f"{side} player {slot}"].strip()
+                    if _normalized(name) in ambiguous:
+                        fixture_ambiguous.append(
+                            {
+                                "provider": PROVIDER,
+                                "fixture_id": fixture_id,
+                                "player_name": name,
+                                "normalized_name": _normalized(name),
+                                "team": team_name,
+                                "teams": sorted(player_teams[_normalized(name)]),
+                                "reason": "ambiguous_player_identity",
+                            }
+                        )
+            if fixture_ambiguous:
+                incomplete += 1
+                continue
             home, home_learned, home_fallback = _lineup(
                 row, side="home", team_name=home_name, learned_roles=roles
             )
@@ -412,6 +467,27 @@ def import_european_football_games(
             observations += 22
             learned += home_learned + away_learned
             fallback += home_fallback + away_fallback
+    quarantine_path = (
+        project_dir
+        / "data"
+        / "quarantine"
+        / "european_football_games_player_identities.jsonl"
+    )
+    quarantine_path.parent.mkdir(parents=True, exist_ok=True)
+    quarantine_path.write_text(
+        "".join(
+            json.dumps(item, ensure_ascii=False, sort_keys=True) + "\n"
+            for item in sorted(
+                quarantine,
+                key=lambda item: (
+                    str(item["fixture_id"]),
+                    str(item["team"]),
+                    str(item["player_name"]),
+                ),
+            )
+        ),
+        encoding="utf-8",
+    )
     return EuropeanFootballGamesImportResult(
         matches_seen=len(rows),
         matches_imported=imported,
@@ -422,4 +498,5 @@ def import_european_football_games(
         roles_from_slot=fallback,
         matches_reconciled=reconciled,
         reconciliation_unresolved=unresolved,
+        ambiguous_player_identities=len(quarantine),
     )
