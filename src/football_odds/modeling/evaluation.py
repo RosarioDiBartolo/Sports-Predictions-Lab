@@ -21,6 +21,9 @@ def probability_metrics(
 ) -> dict[str, float | int]:
     labels = pd.Categorical(results, categories=OUTCOMES).codes
     encoded = np.eye(3)[labels]
+    cumulative_error = np.cumsum(probabilities, axis=1)[:, :-1] - np.cumsum(
+        encoded, axis=1
+    )[:, :-1]
     confidence = probabilities.max(axis=1)
     predicted = probabilities.argmax(axis=1)
     bins = np.minimum((confidence * 10).astype(int), 9)
@@ -35,6 +38,7 @@ def probability_metrics(
         "matches": len(results),
         "log_loss": float(log_loss(labels, probabilities, labels=[0, 1, 2])),
         "brier": float(np.mean(np.sum((probabilities - encoded) ** 2, axis=1))),
+        "rps": float(np.mean(np.sum(cumulative_error**2, axis=1) / 2.0)),
         "accuracy": float(np.mean(predicted == labels)),
         "ece": float(ece),
     }
