@@ -1,77 +1,111 @@
 # Sports Predictions Lab
 
-Research platform for evaluating bookmaker probabilities and building
-leakage-safe football modeling datasets.
+Laboratorio di ricerca per costruire e valutare probabilità calcistiche
+pre-partita senza leakage temporale.
 
-## Run the canonical pipeline
+L'obiettivo corrente è un modello **post-lineup e pre-kickoff**: riceve le
+formazioni ufficiali, rappresenta i 22 titolari attraverso feature storiche
+disponibili prima della partita e produce `P(1)`, `P(X)` e `P(2)`.
+
+Il progetto dispone già di un dataset validato di **26.670 partite
+training-ready** e **731.044 osservazioni giocatore-partita**. Il gate corrente
+ha **zero partite in quarantena**; eventuali futuri casi incompleti o ambigui
+non verranno forzati e conserveranno una motivazione verificabile.
+
+## Documentazione
+
+La fonte autorevole per architettura, pipeline, contratti, feature, comandi,
+artefatti, garanzie temporali e decisioni è
+[`docs/README.md`](docs/README.md).
+
+Il README principale è una porta d'ingresso; in caso di divergenza prevalgono
+i documenti Markdown indicizzati dalla documentazione autorevole.
+
+## Installazione
+
+Requisiti: Python 3.10 o successivo e PowerShell.
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
-odds-lab build all
 ```
 
-The pipeline resolves one canonical dependency graph:
+Le chiavi opzionali vanno in `.env` o nelle variabili d'ambiente e non devono
+essere versionate. Per il fallback API-Football:
 
 ```text
-01 ingest:    raw CSV → SQLite canonical tables
-02 enrich:    teams + matches → venues + weather
-03 analytics: canonical tables → analytics_dataset.csv + research tables
-04 market:    matches + odds → calibration and market metrics
-05 features:  canonical history → modeling_features.csv
-06 baselines: modeling_features.csv → baseline predictions + metrics
-07 model:     modeling_features.csv → model + OOS evidence
-08 predict:   model + history + fixtures → upcoming_predictions.csv
+API_FOOTBALL_KEY=...
 ```
 
-Target individual outputs when needed:
+## Avvio rapido
+
+Costruisci il dataset giocatori senza effettuare training:
 
 ```powershell
-odds-lab build ingest
-odds-lab build analytics
-odds-lab build market
-odds-lab build features
-odds-lab build baselines
-odds-lab build model
-odds-lab build hybrid
-odds-lab build edge
-odds-lab sport-model
+odds-lab players dataset
 ```
 
-Use `--refresh` to refresh provider caches and `--rebuild-features` to ignore
-an existing feature artifact.
-
-`build all` runs the canonical production graph and deliberately excludes the
-experimental `hybrid` and `edge` targets. Run those targets explicitly when
-evaluating a candidate model or a frozen betting rule.
-
-Predict a target-free fixture file after training the model:
+Esegui il collector multi-provider e ricostruisci il dataset:
 
 ```powershell
-odds-lab predict --fixtures upcoming_fixtures.csv
+odds-lab players collect --request-budget 100
 ```
 
-The fixture CSV requires `date`, `season`, `league`, `home_team` and
-`away_team`; `match_id` is optional. The sport-only model never consumes odds.
-Its sports inputs include leakage-safe rolling shots, shots on target, corners,
-cards, finishing rates, venue splits and exponentially weighted recent form.
-The model report includes paired-bootstrap uncertainty and an explicit
-promotion gate against the logistic sports baseline.
+Il collector usa cache e stato persistente, rispetta il budget, riprende il
+lavoro interrotto, riconcilia squadre e giocatori e mette in quarantena i casi
+ambigui. Gli output principali sono:
 
-The execution manifest is written to `reports/pipeline_manifest.json`. For each
-executed stage it records exact inputs, outputs, row counts and status.
+- `data/processed/player_training_ready.csv`
+- `reports/player_data/dataset/coverage.json`
+- `reports/player_data/dataset/quarantine.jsonl`
+- `reports/player_data/dataset/PLAYER_DATASET_REPORT.md`
 
-## Living documentation
+Costruisci l'intera pipeline canonica:
 
-Architecture, features, commands, artifacts, dependencies and guarantees are
-maintained in `docs-app/src/docs.ts`. It is both the LLM-readable source of
-truth and the data source rendered by the documentation webapp.
+```powershell
+odds-lab run
+```
 
-## Quality
+Allena l'unico modello operativo, il neurale basato sui giocatori:
+
+```powershell
+odds-lab model train --embedding-dim 32 --epochs 80
+```
+
+Per tutti i target, i contratti di input e gli artefatti prodotti, consulta la
+documentazione vivente invece di affidarti a esempi copiati.
+
+## Qualità e riproducibilità
 
 ```powershell
 pytest
 ruff check src tests
 mypy src
 ```
+
+Le feature pre-match vengono calcolate prima di osservare risultato,
+prestazioni e lineup storicizzata della partita corrente. La validazione dei
+modelli è temporale e gli artefatti conservano provenienza e diagnostica.
+
+## Struttura essenziale
+
+```text
+src/football_odds/   libreria e CLI
+tests/               test automatici
+data/raw/            copie delle sorgenti
+data/cache/          risposte riutilizzabili dei provider
+data/processed/      dataset derivati
+reports/             copertura, quarantena, metriche e modelli
+docs/                documentazione Markdown autorevole
+```
+
+## Contribuire
+
+Prima di modificare una pipeline o un contratto, leggi `AGENTS.md`. Ogni
+variazione a CLI, stage, feature, output, dipendenze, garanzie temporali o
+validazione deve aggiornare nello stesso cambiamento il documento pertinente
+indicato da `docs/README.md`; il lavoro è completo solo quando documentazione e
+test descrivono il comportamento reale.
+
+Non committare chiavi API, database locali, cache o artefatti generati.

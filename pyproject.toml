@@ -17,6 +17,7 @@ dependencies = [
   "plotly>=5.20",
   "requests>=2.31",
   "scikit-learn>=1.4",
+  "torch>=2.2",
 ]
 
 [project.optional-dependencies]
@@ -29,7 +30,7 @@ dev = [
 ]
 
 [project.scripts]
-odds-lab = "football_odds.cli:main"
+odds-lab = "football_odds.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -48,7 +49,7 @@ exclude = ["notebooks"]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
-"src/football_odds/research.py" = ["E501"]
+"src/football_odds/market/research.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
