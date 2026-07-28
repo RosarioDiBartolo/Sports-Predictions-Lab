@@ -13,6 +13,7 @@ import pandas as pd
 
 from ..data.repository import ResearchDatabase
 from ..ingestion.providers.transfermarkt_open import PROVIDER
+from .timestamps import utc_instants
 
 
 @dataclass(frozen=True)
@@ -221,8 +222,10 @@ def build_temporal_player_matrix(observations: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"Missing temporal observation fields: {sorted(missing)}")
     history: dict[str, list[dict[str, Any]]] = defaultdict(list)
     output: list[dict[str, Any]] = []
-    ordered = observations.sort_values(["kickoff", "match_id", "player_id"])
-    for _, simultaneous in ordered.groupby("kickoff", sort=False):
+    ordered = observations.assign(
+        _kickoff_instant=utc_instants(observations["kickoff"])
+    ).sort_values(["_kickoff_instant", "match_id", "player_id"])
+    for _, simultaneous in ordered.groupby("_kickoff_instant", sort=False):
         for row in simultaneous.to_dict("records"):
             prior = history[str(row["player_id"])]
             starts = sum(item["lineup_role"] == "starter" for item in prior)

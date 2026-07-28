@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from ..data.repository import ResearchDatabase
+from .timestamps import utc_instants
 
 PLAYER_FEATURE_NAMES = (
     "player_expected_strength",
@@ -192,8 +193,10 @@ def build_prematch_player_features(
         lambda: deque(maxlen=lookback)
     )
     output: list[dict[str, object]] = []
-    ordered = matches.sort_values(["date", "match_id"]).copy()
-    for _, simultaneous in ordered.groupby("date", sort=False):
+    ordered = matches.assign(_date_instant=utc_instants(matches["date"])).sort_values(
+        ["_date_instant", "match_id"]
+    )
+    for _, simultaneous in ordered.groupby("_date_instant", sort=False):
         for row in simultaneous.itertuples(index=False):
             values: dict[str, object] = {"match_id": str(row.match_id)}
             for side in ("home", "away"):

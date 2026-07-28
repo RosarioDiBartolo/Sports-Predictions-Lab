@@ -56,6 +56,20 @@ def test_simultaneous_matches_update_only_after_all_snapshots():
     assert matrix["observations_available"].eq(False).all()
 
 
+def test_equivalent_timezone_kickoffs_are_simultaneous():
+    rows = pd.concat(
+        [
+            _rows().iloc[[0]].assign(kickoff="2024-01-01T12:00:00+00:00"),
+            _rows()
+            .iloc[[0]]
+            .assign(match_id="m1b", kickoff="2024-01-01T13:00:00+01:00"),
+        ],
+        ignore_index=True,
+    )
+    matrix = build_temporal_player_matrix(rows)
+    assert matrix["observations_available"].eq(False).all()
+
+
 def test_team_change_is_an_observed_interval_not_a_contract():
     matrix = build_temporal_player_matrix(_rows())
     assert matrix.loc[1, "team_change_value"]

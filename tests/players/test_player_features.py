@@ -108,6 +108,15 @@ def test_simultaneous_matches_are_snapshotted_before_updates():
     assert np.isnan(features.loc[1, "home_player_expected_strength"])
 
 
+def test_equivalent_timezone_dates_are_snapshotted_together():
+    matches = _matches().iloc[:2].copy()
+    matches.loc[0, "date"] = "2024-08-01T12:00:00+00:00"
+    matches.loc[1, "date"] = "2024-08-01T13:00:00+01:00"
+    features = build_prematch_player_features(matches, _lineups(False))
+
+    assert features.drop(columns="match_id").isna().all(axis=None)
+
+
 def test_player_feature_contract_rejects_invalid_lookback():
     try:
         build_prematch_player_features(_matches(), _lineups(), lookback=0)
