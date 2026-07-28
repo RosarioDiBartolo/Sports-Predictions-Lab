@@ -160,13 +160,17 @@ def audit_lineups(
                 samples.append(row)
                 rows.append(row)
             frame = pd.DataFrame(rows)
-            summaries.append(
+            rates = (
                 {
-                    "league_id": league_id,
-                    "league": league,
-                    "season": season,
-                    "fixtures_available": len(fixtures),
-                    "fixtures_sampled": len(rows),
+                    "two_lineups_rate": float("nan"),
+                    "complete_starting_xi_rate": float("nan"),
+                    "bench_rate": float("nan"),
+                    "player_id_rate": float("nan"),
+                    "position_rate": float("nan"),
+                    "formation_rate": float("nan"),
+                }
+                if frame.empty
+                else {
                     "two_lineups_rate": float(frame["team_lineups"].eq(2).mean()),
                     "complete_starting_xi_rate": float(
                         frame["complete_starting_xi"].mean()
@@ -175,6 +179,16 @@ def audit_lineups(
                     "player_id_rate": float(frame["player_id_rate"].mean()),
                     "position_rate": float(frame["position_rate"].mean()),
                     "formation_rate": float(frame["formations_available"].mean()),
+                }
+            )
+            summaries.append(
+                {
+                    "league_id": league_id,
+                    "league": league,
+                    "season": season,
+                    "fixtures_available": len(fixtures),
+                    "fixtures_sampled": len(rows),
+                    **rates,
                     "published_at_rate": 0.0,
                 }
             )
