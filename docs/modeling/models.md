@@ -48,6 +48,10 @@ Required evidence includes:
 - comparison against bookmaker probabilities available at the cutoff;
 - reproducible strategy backtests and economic results where applicable.
 
+Paired-bootstrap verdicts distinguish statistically better, statistically
+worse and inconclusive candidates; unfavorable evidence is never collapsed
+into the inconclusive category.
+
 Accuracy remains secondary. Closing odds may be used as a research benchmark
 but must not be presented as live-executable when they were unavailable at the
 decision time.
@@ -56,6 +60,10 @@ decision time.
 
 The following are not operational models:
 
+- `dixon_coles_shared_encoder_pooling_gated` while it is under evaluation as
+  the next version of the official neural family;
+- `dixon_coles_gated_tabular_residual`, the gradient-boosting challenger trained
+  on the same residual targets, feature groups and reliability gate;
 - `dixon_coles_gradient_boosting`;
 - `sport_gradient_boosting`;
 - Dixon–Coles without player data;
@@ -71,6 +79,22 @@ They remain only when needed as:
 
 Their artifacts, configurations, datasets, predictions and metrics must be
 archived, not deleted.
+
+## Active gated comparison
+
+The next common-pipeline comparison has two controlled candidates:
+
+- the shared-encoder neural model with its bounded log-rate correction
+  multiplied by the deterministic reliability score;
+- a tabular gradient-boosting residual model that predicts the same two bounded
+  log-rate corrections from fixed team, department, bench and reliability
+  aggregates.
+
+Both candidates use the same cross-fitted Dixon-Coles rates, temporal folds,
+feature ablations, correction bound, reliability score, match intersection,
+random seeds and evaluation artifacts. The current official neural artifact is
+not overwritten during experimentation. The tabular candidate is diagnostic
+and does not become operational merely by outperforming one neural run.
 
 ## Temporal guarantees
 

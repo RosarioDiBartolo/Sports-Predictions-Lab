@@ -98,5 +98,11 @@ def paired_log_loss_bootstrap(
         "ci_low": float(low),
         "ci_high": float(high),
         "probability_candidate_better": float(np.mean(means < 0)),
-        "verdict": "candidate_better" if high < 0 else "inconclusive",
+        "verdict": (
+            "candidate_better"
+            if high < 0
+            else "candidate_worse"
+            if low > 0
+            else "inconclusive"
+        ),
     }
