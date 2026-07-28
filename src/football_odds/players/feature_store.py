@@ -11,8 +11,8 @@ from typing import Any, cast
 
 import pandas as pd
 
+from ..core.providers import TRANSFERMARKT_PROVIDER
 from ..data.repository import ResearchDatabase
-from ..ingestion.providers.transfermarkt_open import PROVIDER
 from .timestamps import utc_instants
 
 
@@ -47,7 +47,8 @@ def _upsert_transfermarkt(
         return 0
     with database.connect() as connection:
         provider_id = connection.execute(
-            "SELECT provider_id FROM providers WHERE provider_name=?", (PROVIDER,)
+            "SELECT provider_id FROM providers WHERE provider_name=?",
+            (TRANSFERMARKT_PROVIDER,),
         ).fetchone()
         if provider_id is None:
             return 0
@@ -140,7 +141,7 @@ def _upsert_transfermarkt(
         if minute_in is not None and minute_out is not None and minute_in > minute_out:
             quarantine.append(
                 {
-                    "provider": PROVIDER,
+                    "provider": TRANSFERMARKT_PROVIDER,
                     "game_id": game_id,
                     "player_id": external_player,
                     "reason": "minute_in_after_minute_out",

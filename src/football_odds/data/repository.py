@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from ..ingestion.contracts import MatchRecord, OddsRecord
+from .contracts import MatchRecord, OddsRecord
 from .schema import SCHEMA
 
 

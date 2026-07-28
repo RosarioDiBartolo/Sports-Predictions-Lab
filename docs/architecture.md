@@ -22,12 +22,14 @@ src/football_odds/
 
 ## Dependency direction
 
-- Domain packages may depend on `core`.
-- Provider adapters depend on data contracts, not on modeling.
-- Player features depend on canonical data and may be consumed by modeling.
+- `core` has no domain dependencies; `data` depends only on `core`.
+- `players` depends on `core` and `data`; provider adapters in `ingestion`
+  additionally call the public player observation/reconciliation services.
+- `market` depends on `core` and `data`; `modeling` may additionally consume
+  public player and market contracts.
 - Modeling emits versioned predictions; it does not own odds or strategy data.
-- Strategies join versioned predictions to odds available at the decision
-  cutoff.
+- Strategies depend only on `core`, versioned modeling predictions and market
+  snapshots available at the decision cutoff.
 - The CLI orchestrates domains but contains no model, ingestion or persistence
   logic.
 - Circular imports between domain packages are prohibited.

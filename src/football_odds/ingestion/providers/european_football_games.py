@@ -14,9 +14,9 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+from ...data.contracts import MatchRecord
 from ...data.repository import ResearchDatabase
 from ...players.observations import ingest_fixture_lineups
-from ..contracts import MatchRecord
 
 PROVIDER = "European Football Games"
 PLAYER_NAMESPACE = uuid.UUID("78c97ef4-dd80-4e61-97ba-59270b496930")

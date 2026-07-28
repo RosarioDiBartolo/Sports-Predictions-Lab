@@ -12,11 +12,12 @@ from typing import Any
 
 import pandas as pd
 
+from ...core.providers import TRANSFERMARKT_PROVIDER
 from ...data.repository import ResearchDatabase
 from ...players.observations import ingest_fixture_lineups
 from .european_football_games import _team_key
 
-PROVIDER = "Football Data from Transfermarkt"
+PROVIDER = TRANSFERMARKT_PROVIDER
 PLAYER_NAMESPACE = uuid.UUID("008ce233-0fb1-4371-a354-97c9ee987a29")
 COMPETITIONS = {
     "GB1": "E0",

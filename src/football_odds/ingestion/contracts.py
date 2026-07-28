@@ -7,55 +7,16 @@ from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import pandas as pd
 import requests
 
 from ..core.config import BOOKMAKER_ODDS_COLUMNS, LEAGUES, AnalysisConfig
+from ..data.contracts import MatchRecord, OddsRecord
 
 if TYPE_CHECKING:
     from ..data.repository import ResearchDatabase
-
-OddsTiming = Literal["opening", "closing", "snapshot"]
-
-
-@dataclass(frozen=True)
-class MatchRecord:
-    """Provider-neutral representation of one football match."""
-
-    provider_match_id: str
-    date: datetime
-    season: str
-    league_code: str
-    home_team: str
-    away_team: str
-    home_goals: int | None = None
-    away_goals: int | None = None
-    result: str | None = None
-    home_shots: int | None = None
-    away_shots: int | None = None
-    home_shots_on_target: int | None = None
-    away_shots_on_target: int | None = None
-    home_corners: int | None = None
-    away_corners: int | None = None
-    home_yellow_cards: int | None = None
-    away_yellow_cards: int | None = None
-    home_red_cards: int | None = None
-    away_red_cards: int | None = None
-
-
-@dataclass(frozen=True)
-class OddsRecord:
-    """One normalized 1-X-2 market snapshot."""
-
-    provider_match_id: str
-    bookmaker: str
-    market: str
-    odds: dict[str, float]
-    timestamp: datetime | None
-    timing: OddsTiming
-
 
 BASE_URL = "https://www.football-data.co.uk/mmz4281"
 

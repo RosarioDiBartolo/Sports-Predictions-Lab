@@ -9,9 +9,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ...data.contracts import MatchRecord
 from ...data.repository import ResearchDatabase
 from ...players.observations import ingest_fixture_lineups
-from ..contracts import MatchRecord
 
 PROVIDER = "European Soccer Database"
 PLAYER_NAMESPACE = uuid.UUID("60def30b-983b-4fe9-8540-f595d90dfeb1")
