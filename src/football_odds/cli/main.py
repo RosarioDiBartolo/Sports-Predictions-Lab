@@ -5,8 +5,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import pandas as pd
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="odds-lab")
@@ -90,28 +88,9 @@ def _market(project: Path) -> None:
 
 
 def _model(project: Path, epochs: int, embedding_dim: int) -> None:
-    from ..modeling.neural import (
-        build_player_tensor_dataset,
-        export_neural_lineup_model,
-    )
+    from ..modeling.training import run_training
 
-    match_features = pd.read_csv(project / "data/processed/modeling_features.csv")
-    lineups = pd.read_csv(project / "data/processed/player_training_ready.csv")
-    temporal_path = project / "data/processed/player_match_temporal_features.csv"
-    temporal = pd.read_csv(temporal_path) if temporal_path.exists() else None
-    market_path = project / "data/processed/market_predictions.csv"
-    market = pd.read_csv(market_path) if market_path.exists() else pd.DataFrame()
-    tensors = build_player_tensor_dataset(
-        match_features, lineups, temporal_features=temporal
-    )
-    export_neural_lineup_model(
-        tensors,
-        match_features,
-        market,
-        project / "reports/modeling/neural_lineup_model",
-        epochs=epochs,
-        embedding_dim=embedding_dim,
-    )
+    run_training(project, epochs=epochs, embedding_dim=embedding_dim)
 
 
 def main() -> None:
