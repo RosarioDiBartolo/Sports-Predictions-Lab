@@ -26,6 +26,9 @@ def _inputs():
                     "season": season,
                     "league": "I1",
                     "result": result,
+                    "model_version": "model-v1",
+                    "dataset_version": "dataset-v1",
+                    "prediction_cutoff": "2024-01-01T12:00:00Z",
                     "probability_home": 0.70,
                     "probability_draw": 0.18,
                     "probability_away": 0.12,
@@ -50,6 +53,7 @@ def _inputs():
                         "selection": selection,
                         "odds": odds,
                         "opening_or_closing": "closing",
+                        "timestamp": "2024-01-01T11:00:00Z",
                     }
                 )
     return (
@@ -87,7 +91,7 @@ def test_edge_discovery_freezes_rule_and_promotes_only_on_holdout_evidence(tmp_p
     )
 
 
-def test_edge_dataset_ignores_non_average_and_opening_odds():
+def test_edge_dataset_uses_latest_average_odds_available_at_cutoff():
     predictions, features, analytics = _inputs()
     extra = analytics.iloc[:1].copy()
     extra["bookmaker"] = "Maximum Odds"
@@ -95,8 +99,12 @@ def test_edge_dataset_ignores_non_average_and_opening_odds():
     opening = analytics.iloc[:1].copy()
     opening["opening_or_closing"] = "opening"
     opening["odds"] = 88.0
+    opening["timestamp"] = "2024-01-01T10:00:00Z"
+    future = analytics.iloc[:1].copy()
+    future["odds"] = 99.0
+    future["timestamp"] = "2024-01-01T13:00:00Z"
     data = prepare_edge_dataset(
-        predictions, features, pd.concat([analytics, extra, opening])
+        predictions, features, pd.concat([analytics, extra, opening, future])
     )
     assert data.iloc[0]["odds_H"] == 1.8
 
@@ -110,3 +118,10 @@ def test_edge_discovery_rejects_invalid_analysis_contracts():
     data = prepare_edge_dataset(predictions, features, analytics)
     with pytest.raises(ValueError, match="holdout"):
         discover_edges(data, holdout_seasons=("9999",), bootstrap_samples=10)
+
+
+def test_edge_dataset_rejects_unverifiable_odds():
+    predictions, features, analytics = _inputs()
+    analytics.loc[0, "timestamp"] = ""
+    with pytest.raises(ValueError, match="timestamp"):
+        prepare_edge_dataset(predictions, features, analytics)

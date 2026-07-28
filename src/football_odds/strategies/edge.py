@@ -65,6 +65,9 @@ def prepare_edge_dataset(
         "season",
         "league",
         "result",
+        "model_version",
+        "dataset_version",
+        "prediction_cutoff",
         *PROBABILITY_COLUMNS,
     }
     required_features = {
@@ -80,6 +83,7 @@ def prepare_edge_dataset(
         "selection",
         "odds",
         "opening_or_closing",
+        "timestamp",
     }
     for name, frame, required in (
         ("predictions", predictions, required_predictions),
@@ -90,12 +94,24 @@ def prepare_edge_dataset(
         if missing:
             raise ValueError(f"{name}: colonne mancanti {sorted(missing)}")
 
-    closing = analytics.loc[
-        analytics["opening_or_closing"].eq("closing")
-        & analytics["bookmaker"].eq("Market Average"),
-        ["match_id", "selection", "odds"],
+    candidates = analytics.loc[
+        analytics["bookmaker"].eq("Market Average"),
+        ["match_id", "selection", "odds", "timestamp"],
     ].dropna(subset=["odds"])
-    odds = closing.pivot_table(
+    if candidates["timestamp"].isna().any() or candidates["timestamp"].eq("").any():
+        raise ValueError("Le quote candidate devono avere un timestamp verificabile.")
+    candidates = candidates.merge(
+        predictions[["match_id", "prediction_cutoff"]].drop_duplicates(),
+        on="match_id",
+        validate="many_to_one",
+    )
+    candidates["_timestamp"] = pd.to_datetime(candidates["timestamp"], utc=True)
+    candidates["_cutoff"] = pd.to_datetime(candidates["prediction_cutoff"], utc=True)
+    available = candidates.loc[candidates["_timestamp"].le(candidates["_cutoff"])]
+    available = available.sort_values("_timestamp").drop_duplicates(
+        ["match_id", "selection"], keep="last"
+    )
+    odds = available.pivot_table(
         index="match_id", columns="selection", values="odds", aggfunc="median"
     ).rename(columns=lambda outcome: f"odds_{outcome}")
     feature_columns = [

@@ -17,6 +17,10 @@ Every strategy selection must resolve to a model version, dataset version,
 prediction cutoff, configuration, bookmaker and odds snapshot actually
 available at that cutoff.
 
+Strategy inputs fail closed when a candidate odds snapshot has no timestamp.
+Only the latest snapshot at or before the prediction cutoff is eligible; the
+`closing` label alone never establishes availability.
+
 Strategy promotion requires out-of-sample probabilistic evidence and economic
 evidence. A positive average ROI alone is insufficient; uncertainty and
 season-by-season stability remain visible.
