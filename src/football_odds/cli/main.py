@@ -26,10 +26,13 @@ def build_parser() -> argparse.ArgumentParser:
     market = commands.add_parser("market").add_subparsers(dest="action", required=True)
     market.add_parser("build")
     model = commands.add_parser("model").add_subparsers(dest="action", required=True)
-    for action in ("train", "evaluate"):
-        command = model.add_parser(action)
-        command.add_argument("--epochs", type=int, default=80)
-        command.add_argument("--embedding-dim", type=int, default=32)
+    command = model.add_parser("train")
+    command.add_argument("--epochs", type=int, default=80)
+    command.add_argument("--embedding-dim", type=int, default=32)
+    evaluate = model.add_parser("evaluate")
+    evaluate.add_argument("--predictions", type=Path, required=True)
+    evaluate.add_argument("--reference", type=Path, required=True)
+    evaluate.add_argument("--output-dir", type=Path, required=True)
     predict = model.add_parser("predict")
     predict.add_argument("--fixtures", type=Path, required=True)
     strategy = commands.add_parser("strategy").add_subparsers(
@@ -110,8 +113,12 @@ def main() -> None:
         )
     elif args.command == "market":
         _market(project)
-    elif args.command == "model" and args.action in {"train", "evaluate"}:
+    elif args.command == "model" and args.action == "train":
         _model(project, args.epochs, args.embedding_dim)
+    elif args.command == "model" and args.action == "evaluate":
+        from ..modeling.frozen_evaluation import evaluate_frozen
+
+        evaluate_frozen(args.predictions, args.reference, args.output_dir)
     elif args.command == "model":
         raise SystemExit(
             "Neural fixture prediction requires a versioned lineup tensor artifact."
