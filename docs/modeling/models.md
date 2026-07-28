@@ -102,6 +102,12 @@ commit, and must independently pass the common preflight. Selecting CUDA changes
 only the neural compute device, not folds, inputs, targets, seeds or evaluation
 contracts.
 
+Walk-forward fold models are transient evaluation machinery; their versioned
+OOS predictions and metrics are retained. After an ablation is selected from
+common-pipeline evidence, a separate final fit may train on every eligible
+cross-fitted residual target and archive a non-operational checkpoint. That
+checkpoint remains a candidate artifact until an explicit promotion decision.
+
 ## Temporal guarantees
 
 - Current-match results and performance never enter pre-kickoff features.

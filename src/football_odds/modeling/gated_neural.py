@@ -12,6 +12,7 @@ from .evaluation import PROBABILITY_COLUMNS, metrics_by_season
 from .neural import (
     BASE_FEATURE_COUNT,
     NEURAL_LINEUP_MODEL_NAME,
+    NeuralLineupPredictor,
     PlayerTensorDataset,
     cross_fitted_dixon_coles_rates,
     fit_neural_lineup_encoder,
@@ -91,6 +92,54 @@ def _fold_scores(scores: ReliabilityScores, indices: np.ndarray) -> ReliabilityS
         team=scores.team[indices],
         match=scores.match[indices],
     )
+
+
+def fit_final_gated_neural_lineup_model(
+    tensor_data: PlayerTensorDataset,
+    base_features: pd.DataFrame,
+    *,
+    embedding_dim: int = 32,
+    epochs: int = 80,
+    rates: pd.DataFrame | None = None,
+    ablation: NeuralFeatureAblation | str = NeuralFeatureAblation.COMBINED,
+    seed: int = 42,
+    device: str = "cpu",
+) -> tuple[NeuralLineupPredictor, int]:
+    """Fit a non-operational gated candidate on all cross-fitted targets."""
+    selected = NeuralFeatureAblation(ablation)
+    players, bench_players, bench_mask = ablation_inputs(tensor_data, selected)
+    matches = tensor_data.matches.copy()
+    matches["season"] = matches["season"].astype(str).str.zfill(4)
+    if rates is None:
+        rates = cross_fitted_dixon_coles_rates(base_features, matches)
+    matches = matches.merge(rates, on=["match_id", "season"], how="left")
+    training_mask = matches["home_rate"].notna().to_numpy()
+    training = matches.loc[training_mask]
+    targets = np.column_stack(
+        [
+            np.log(
+                (training["home_goals"].to_numpy(float) + 0.5)
+                / (training["home_rate"].to_numpy(float) + 0.5)
+            ),
+            np.log(
+                (training["away_goals"].to_numpy(float) + 0.5)
+                / (training["away_rate"].to_numpy(float) + 0.5)
+            ),
+        ]
+    ).astype(np.float32)
+    predictor = fit_neural_lineup_encoder(
+        players[training_mask],
+        tensor_data.departments[training_mask],
+        targets,
+        bench_players=bench_players[training_mask],
+        bench_departments=tensor_data.bench_departments[training_mask],
+        bench_mask=bench_mask[training_mask],
+        embedding_dim=embedding_dim,
+        epochs=epochs,
+        seed=seed,
+        device=device,
+    )
+    return predictor, int(training_mask.sum())
 
 
 def walk_forward_gated_neural_lineup_model(

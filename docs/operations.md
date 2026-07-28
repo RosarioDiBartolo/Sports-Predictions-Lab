@@ -79,6 +79,22 @@ Repeat `--candidate` or `--ablation` to select multiple stages. CUDA applies
 only to the neural candidate; the scikit-learn tabular challenger remains
 CPU-only. The default device is CPU, preserving local deterministic behavior.
 
+After OOS evaluation has selected an ablation, fit a non-operational final
+gated-neural artifact on all eligible cross-fitted residual targets:
+
+```text
+odds-lab --project-dir <bundle-directory> model fit-final-gated \
+  --ablation combined --epochs 80 --device cuda \
+  --code-version <tested-git-commit> \
+  --run-root <persistent-final-run-directory>
+```
+
+This command performs a fresh mandatory preflight and writes
+`artifacts/final_model/model.pt` plus `metadata.json` under a new immutable run
+directory. The metadata binds the checkpoint to its dataset checksum, code
+commit, feature ablation, seed, hyperparameters and deterministic reliability
+gate. It does not promote or overwrite the official operational model.
+
 ## Artifacts
 
 Canonical database: `data/football_odds.sqlite3`.

@@ -4,6 +4,7 @@ import pandas as pd
 from football_odds.modeling.gated_neural import (
     NeuralFeatureAblation,
     ablation_inputs,
+    fit_final_gated_neural_lineup_model,
     gated_prediction_frame,
     walk_forward_gated_neural_lineup_model,
 )
@@ -161,3 +162,77 @@ def test_gated_walk_forward_returns_the_common_empty_contract_without_folds():
         "probability_draw",
         "probability_away",
     ]
+
+
+def test_final_gated_fit_uses_every_eligible_cross_fitted_target(monkeypatch):
+    players = _starters()
+    matches = pd.DataFrame(
+        [
+            {
+                "match_id": "m1",
+                "season": "2324",
+                "home_goals": 2,
+                "away_goals": 1,
+            },
+            {
+                "match_id": "m2",
+                "season": "2425",
+                "home_goals": 1,
+                "away_goals": 1,
+            },
+        ]
+    )
+    tensor = PlayerTensorDataset(
+        matches=matches,
+        players=players,
+        departments=np.zeros((2, 2, 11), dtype=np.int64),
+        bench_players=np.zeros(
+            (2, 2, 12, len(NEURAL_FEATURE_NAMES)), dtype=np.float32
+        ),
+        bench_departments=np.zeros((2, 2, 12), dtype=np.int64),
+        bench_mask=np.zeros((2, 2, 12), dtype=np.float32),
+    )
+    rates = pd.DataFrame(
+        [
+            {
+                "match_id": "m1",
+                "season": "2324",
+                "home_rate": 1.4,
+                "away_rate": 0.8,
+            },
+            {
+                "match_id": "m2",
+                "season": "2425",
+                "home_rate": np.nan,
+                "away_rate": np.nan,
+            },
+        ]
+    )
+    captured = {}
+    sentinel = object()
+
+    def fake_fit(players, departments, targets, **kwargs):
+        captured["players"] = players
+        captured["targets"] = targets
+        captured["kwargs"] = kwargs
+        return sentinel
+
+    monkeypatch.setattr(
+        "football_odds.modeling.gated_neural.fit_neural_lineup_encoder",
+        fake_fit,
+    )
+
+    predictor, training_matches = fit_final_gated_neural_lineup_model(
+        tensor,
+        pd.DataFrame(),
+        rates=rates,
+        ablation="combined",
+        epochs=7,
+        device="cpu",
+    )
+
+    assert predictor is sentinel
+    assert training_matches == 1
+    assert len(captured["players"]) == 1
+    assert captured["targets"].shape == (1, 2)
+    assert captured["kwargs"]["epochs"] == 7

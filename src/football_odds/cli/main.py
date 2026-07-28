@@ -43,6 +43,18 @@ def build_parser() -> argparse.ArgumentParser:
     bundle.add_argument("--output-dir", type=Path, required=True)
     verify = model.add_parser("verify-bundle")
     verify.add_argument("--bundle-dir", type=Path, required=True)
+    final_fit = model.add_parser("fit-final-gated")
+    final_fit.add_argument("--epochs", type=int, default=80)
+    final_fit.add_argument("--embedding-dim", type=int, default=32)
+    final_fit.add_argument("--seed", type=int, default=42)
+    final_fit.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
+    final_fit.add_argument(
+        "--ablation",
+        choices=("base", "feature_store", "bench", "combined"),
+        default="combined",
+    )
+    final_fit.add_argument("--code-version", required=True)
+    final_fit.add_argument("--run-root", type=Path)
     evaluate = model.add_parser("evaluate")
     evaluate.add_argument("--predictions", type=Path, required=True)
     evaluate.add_argument("--reference", type=Path, required=True)
@@ -158,6 +170,19 @@ def main() -> None:
         from ..modeling.training_bundle import verify_training_bundle
 
         verify_training_bundle(args.bundle_dir)
+    elif args.command == "model" and args.action == "fit-final-gated":
+        from ..modeling.final_candidate import fit_final_gated_candidate
+
+        fit_final_gated_candidate(
+            project,
+            code_version=args.code_version,
+            epochs=args.epochs,
+            embedding_dim=args.embedding_dim,
+            seed=args.seed,
+            device=args.device,
+            ablation=args.ablation,
+            run_root=args.run_root,
+        )
     elif args.command == "model" and args.action == "evaluate":
         from ..modeling.frozen_evaluation import evaluate_frozen
 
