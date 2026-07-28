@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from itertools import product
+import re
 from pathlib import Path
 
 import numpy as np
@@ -195,7 +196,7 @@ def discover_edges(
     bootstrap_samples: int = 5000,
 ) -> tuple[dict[str, object], pd.DataFrame, pd.DataFrame, pd.DataFrame, bool]:
     """Choose on discovery data and evaluate the frozen rule once on holdout."""
-    seasons = sorted(data["season"].astype(str).unique())
+    seasons = sorted(data["season"].astype(str).unique(), key=_season_key)
     holdout_seasons = holdout_seasons or tuple(seasons[-2:])
     if len(holdout_seasons) < 1 or not set(holdout_seasons).issubset(seasons):
         raise ValueError("Le stagioni holdout devono esistere nelle predizioni OOS.")
@@ -385,3 +386,13 @@ def export_edge_discovery(
         "report": report_path,
     }
     return EdgeDiscoveryResult(rule, summary, stability, candidates, outputs, promoted)
+
+
+def _season_key(value: object) -> int:
+    season = str(value)
+    if re.fullmatch(r"\d{4}/\d{2}", season):
+        return int(season[:4])
+    if re.fullmatch(r"\d{4}", season):
+        first = int(season[:2])
+        return (1900 if first >= 50 else 2000) + first
+    raise ValueError(f"Formato stagione ambiguo: {season}")
