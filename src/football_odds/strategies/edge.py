@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from itertools import product
-import re
 from pathlib import Path
 
 import numpy as np
