@@ -10,6 +10,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 graphify-out/
+data/raw/external/
 data/raw/*.csv
 data/processed/*.csv
 data/processed/*.meta.json
@@ -18,8 +19,11 @@ data/archive/*.sqlite3
 reports/*.csv
 reports/*.png
 reports/**/*.csv
+reports/**/*.log
 reports/**/*.png
 reports/**/*.joblib
+reports/**/*.pt
+reports/**/collector_state.json
 reports/pipeline_manifest.json
 reports/research/
 .coverage

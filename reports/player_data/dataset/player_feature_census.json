@@ -1,0 +1,336 @@
+{
+  "canonical_player_match_observations": {
+    "rows": 487175,
+    "lineup_role": 485973,
+    "position_original": 485973,
+    "position_normalized": 485973,
+    "formation_grid": 0,
+    "shirt_number": 485973,
+    "bench_available": 485973,
+    "minutes_played": 368375,
+    "minute_in": 94698,
+    "minute_out": 97717,
+    "substitution_entry": 94698,
+    "substitution_exit": 97717,
+    "player_statistics_json": 368375,
+    "by_provider": [
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "D1",
+        "season": "1819",
+        "rows": 10700,
+        "minutes_played": 8442,
+        "minute_in": 1710,
+        "minute_out": 1765
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "D1",
+        "season": "1920",
+        "rows": 11690,
+        "minutes_played": 8713,
+        "minute_in": 1981,
+        "minute_out": 2017
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "D1",
+        "season": "2021",
+        "rows": 11820,
+        "minutes_played": 9175,
+        "minute_in": 2461,
+        "minute_out": 2539
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "D1",
+        "season": "2122",
+        "rows": 11685,
+        "minutes_played": 9172,
+        "minute_in": 2567,
+        "minute_out": 2658
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "D1",
+        "season": "2223",
+        "rows": 11768,
+        "minutes_played": 9326,
+        "minute_in": 2662,
+        "minute_out": 2747
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "D1",
+        "season": "2324",
+        "rows": 11612,
+        "minutes_played": 9386,
+        "minute_in": 2654,
+        "minute_out": 2795
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "D1",
+        "season": "2425",
+        "rows": 11657,
+        "minutes_played": 9418,
+        "minute_in": 2686,
+        "minute_out": 2799
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "E0",
+        "season": "1819",
+        "rows": 13306,
+        "minutes_played": 10396,
+        "minute_in": 2059,
+        "minute_out": 2124
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "E0",
+        "season": "1920",
+        "rows": 13579,
+        "minutes_played": 10507,
+        "minute_in": 2183,
+        "minute_out": 2257
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "E0",
+        "season": "2021",
+        "rows": 14154,
+        "minutes_played": 10302,
+        "minute_in": 1978,
+        "minute_out": 2034
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "E0",
+        "season": "2122",
+        "rows": 14495,
+        "minutes_played": 10354,
+        "minute_in": 2092,
+        "minute_out": 2128
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "E0",
+        "season": "2223",
+        "rows": 14665,
+        "minutes_played": 11299,
+        "minute_in": 2939,
+        "minute_out": 2985
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "E0",
+        "season": "2324",
+        "rows": 14256,
+        "minutes_played": 11288,
+        "minute_in": 2928,
+        "minute_out": 3025
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "E0",
+        "season": "2425",
+        "rows": 14332,
+        "minutes_played": 11461,
+        "minute_in": 3101,
+        "minute_out": 3206
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "F1",
+        "season": "1819",
+        "rows": 13107,
+        "minutes_played": 10429,
+        "minute_in": 2082,
+        "minute_out": 2178
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "F1",
+        "season": "1920",
+        "rows": 9805,
+        "minutes_played": 7645,
+        "minute_in": 1535,
+        "minute_out": 1601
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "F1",
+        "season": "2021",
+        "rows": 14566,
+        "minutes_played": 11335,
+        "minute_in": 3013,
+        "minute_out": 3136
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "F1",
+        "season": "2122",
+        "rows": 14411,
+        "minutes_played": 11148,
+        "minute_in": 3038,
+        "minute_out": 3163
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "F1",
+        "season": "2223",
+        "rows": 14198,
+        "minutes_played": 11372,
+        "minute_in": 3031,
+        "minute_out": 3187
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "F1",
+        "season": "2324",
+        "rows": 11512,
+        "minutes_played": 9271,
+        "minute_in": 2539,
+        "minute_out": 2661
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "F1",
+        "season": "2425",
+        "rows": 11465,
+        "minutes_played": 9282,
+        "minute_in": 2550,
+        "minute_out": 2680
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "I1",
+        "season": "1819",
+        "rows": 15603,
+        "minutes_played": 10487,
+        "minute_in": 2142,
+        "minute_out": 2211
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "I1",
+        "season": "1920",
+        "rows": 15841,
+        "minutes_played": 10868,
+        "minute_in": 2508,
+        "minute_out": 2595
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "I1",
+        "season": "2021",
+        "rows": 15977,
+        "minutes_played": 11548,
+        "minute_in": 3210,
+        "minute_out": 3284
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "I1",
+        "season": "2122",
+        "rows": 15855,
+        "minutes_played": 11396,
+        "minute_in": 3259,
+        "minute_out": 3350
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "I1",
+        "season": "2223",
+        "rows": 16448,
+        "minutes_played": 11775,
+        "minute_in": 3415,
+        "minute_out": 3526
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "I1",
+        "season": "2324",
+        "rows": 16178,
+        "minutes_played": 11815,
+        "minute_in": 3456,
+        "minute_out": 3550
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "I1",
+        "season": "2425",
+        "rows": 15800,
+        "minutes_played": 11707,
+        "minute_in": 3351,
+        "minute_out": 3526
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "SP1",
+        "season": "1819",
+        "rows": 12891,
+        "minutes_played": 10311,
+        "minute_in": 2141,
+        "minute_out": 2190
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "SP1",
+        "season": "1920",
+        "rows": 14301,
+        "minutes_played": 10894,
+        "minute_in": 2563,
+        "minute_out": 2592
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "SP1",
+        "season": "2021",
+        "rows": 15708,
+        "minutes_played": 11031,
+        "minute_in": 3157,
+        "minute_out": 3230
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "SP1",
+        "season": "2122",
+        "rows": 16175,
+        "minutes_played": 11429,
+        "minute_in": 3393,
+        "minute_out": 3436
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "SP1",
+        "season": "2223",
+        "rows": 15867,
+        "minutes_played": 11758,
+        "minute_in": 3398,
+        "minute_out": 3480
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "SP1",
+        "season": "2324",
+        "rows": 15756,
+        "minutes_played": 11813,
+        "minute_in": 3453,
+        "minute_out": 3522
+      },
+      {
+        "provider": "Football Data from Transfermarkt",
+        "league": "SP1",
+        "season": "2425",
+        "rows": 15992,
+        "minutes_played": 11822,
+        "minute_in": 3463,
+        "minute_out": 3540
+      }
+    ]
+  },
+  "temporal_feature_rows": 487175,
+  "conflicts_quarantined": 5
+}

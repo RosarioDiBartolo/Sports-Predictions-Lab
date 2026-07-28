@@ -1,0 +1,26 @@
+{
+  "dixon_coles": {
+    "matches": 24950,
+    "mean_log_loss_difference": 2.2181284008353215e-05,
+    "ci_low": -0.0012329420090917123,
+    "ci_high": 0.0013237630777801037,
+    "probability_candidate_better": 0.485,
+    "verdict": "inconclusive"
+  },
+  "linear_pooling": {
+    "matches": 24950,
+    "mean_log_loss_difference": -0.0010946809845720211,
+    "ci_low": -0.0022879993262339055,
+    "ci_high": 0.00010795739095797403,
+    "probability_candidate_better": 0.963,
+    "verdict": "inconclusive"
+  },
+  "official": {
+    "matches": 24950,
+    "mean_log_loss_difference": 0.000748509315747282,
+    "ci_low": -0.0006247600844887162,
+    "ci_high": 0.0021409616510280225,
+    "probability_candidate_better": 0.162,
+    "verdict": "inconclusive"
+  }
+}

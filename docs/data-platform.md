@@ -44,3 +44,14 @@ The canonical v2 design includes source assets, data releases, quarantine,
 schema version, checksums, row counts and artifact lineage. Migration is
 idempotent, resumable and additive; legacy tables are not physically dropped in
 the first migration.
+
+## Version-control boundary
+
+Git does not store raw external datasets, model weights, execution logs or
+mutable collector state. Those assets remain preserved in their data or
+artifact storage and are referenced by lightweight, immutable manifests that
+record source, licence, checksum, size, dataset or model version and lineage.
+
+Curated Markdown reports and compact JSON evaluation evidence may be versioned
+when they identify the producing configuration and inputs. Ignoring an asset in
+Git is never authorization to delete or overwrite it.

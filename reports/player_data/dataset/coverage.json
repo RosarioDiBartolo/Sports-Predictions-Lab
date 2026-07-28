@@ -1,0 +1,459 @@
+{
+  "matches_seen": 26670,
+  "training_ready": 26670,
+  "quarantined": 0,
+  "player_observations": 731044,
+  "reasons": {},
+  "by_league_season": [
+    {
+      "league": "D1",
+      "season": "1011",
+      "matches": 301,
+      "training_ready": 301
+    },
+    {
+      "league": "D1",
+      "season": "1112",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "1213",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "1314",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "1415",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "1516",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "1617",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "1718",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "1819",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "1920",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "2021",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "2122",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "2223",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "2324",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "D1",
+      "season": "2425",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "E0",
+      "season": "1011",
+      "matches": 367,
+      "training_ready": 367
+    },
+    {
+      "league": "E0",
+      "season": "1112",
+      "matches": 367,
+      "training_ready": 367
+    },
+    {
+      "league": "E0",
+      "season": "1213",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "E0",
+      "season": "1314",
+      "matches": 379,
+      "training_ready": 379
+    },
+    {
+      "league": "E0",
+      "season": "1415",
+      "matches": 371,
+      "training_ready": 371
+    },
+    {
+      "league": "E0",
+      "season": "1516",
+      "matches": 377,
+      "training_ready": 377
+    },
+    {
+      "league": "E0",
+      "season": "1617",
+      "matches": 379,
+      "training_ready": 379
+    },
+    {
+      "league": "E0",
+      "season": "1718",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "E0",
+      "season": "1819",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "E0",
+      "season": "1920",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "E0",
+      "season": "2021",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "E0",
+      "season": "2122",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "E0",
+      "season": "2223",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "E0",
+      "season": "2324",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "E0",
+      "season": "2425",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "F1",
+      "season": "1011",
+      "matches": 359,
+      "training_ready": 359
+    },
+    {
+      "league": "F1",
+      "season": "1112",
+      "matches": 375,
+      "training_ready": 375
+    },
+    {
+      "league": "F1",
+      "season": "1213",
+      "matches": 354,
+      "training_ready": 354
+    },
+    {
+      "league": "F1",
+      "season": "1314",
+      "matches": 376,
+      "training_ready": 376
+    },
+    {
+      "league": "F1",
+      "season": "1415",
+      "matches": 365,
+      "training_ready": 365
+    },
+    {
+      "league": "F1",
+      "season": "1516",
+      "matches": 349,
+      "training_ready": 349
+    },
+    {
+      "league": "F1",
+      "season": "1617",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "F1",
+      "season": "1718",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "F1",
+      "season": "1819",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "F1",
+      "season": "1920",
+      "matches": 279,
+      "training_ready": 279
+    },
+    {
+      "league": "F1",
+      "season": "2021",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "F1",
+      "season": "2122",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "F1",
+      "season": "2223",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "F1",
+      "season": "2324",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "F1",
+      "season": "2425",
+      "matches": 306,
+      "training_ready": 306
+    },
+    {
+      "league": "I1",
+      "season": "1011",
+      "matches": 350,
+      "training_ready": 350
+    },
+    {
+      "league": "I1",
+      "season": "1112",
+      "matches": 325,
+      "training_ready": 325
+    },
+    {
+      "league": "I1",
+      "season": "1213",
+      "matches": 375,
+      "training_ready": 375
+    },
+    {
+      "league": "I1",
+      "season": "1314",
+      "matches": 348,
+      "training_ready": 348
+    },
+    {
+      "league": "I1",
+      "season": "1415",
+      "matches": 343,
+      "training_ready": 343
+    },
+    {
+      "league": "I1",
+      "season": "1516",
+      "matches": 336,
+      "training_ready": 336
+    },
+    {
+      "league": "I1",
+      "season": "1617",
+      "matches": 379,
+      "training_ready": 379
+    },
+    {
+      "league": "I1",
+      "season": "1718",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "I1",
+      "season": "1819",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "I1",
+      "season": "1920",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "I1",
+      "season": "2021",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "I1",
+      "season": "2122",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "I1",
+      "season": "2223",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "I1",
+      "season": "2324",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "I1",
+      "season": "2425",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "SP1",
+      "season": "1011",
+      "matches": 343,
+      "training_ready": 343
+    },
+    {
+      "league": "SP1",
+      "season": "1112",
+      "matches": 378,
+      "training_ready": 378
+    },
+    {
+      "league": "SP1",
+      "season": "1213",
+      "matches": 369,
+      "training_ready": 369
+    },
+    {
+      "league": "SP1",
+      "season": "1314",
+      "matches": 372,
+      "training_ready": 372
+    },
+    {
+      "league": "SP1",
+      "season": "1415",
+      "matches": 364,
+      "training_ready": 364
+    },
+    {
+      "league": "SP1",
+      "season": "1516",
+      "matches": 351,
+      "training_ready": 351
+    },
+    {
+      "league": "SP1",
+      "season": "1617",
+      "matches": 374,
+      "training_ready": 374
+    },
+    {
+      "league": "SP1",
+      "season": "1718",
+      "matches": 369,
+      "training_ready": 369
+    },
+    {
+      "league": "SP1",
+      "season": "1819",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "SP1",
+      "season": "1920",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "SP1",
+      "season": "2021",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "SP1",
+      "season": "2122",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "SP1",
+      "season": "2223",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "SP1",
+      "season": "2324",
+      "matches": 380,
+      "training_ready": 380
+    },
+    {
+      "league": "SP1",
+      "season": "2425",
+      "matches": 380,
+      "training_ready": 380
+    }
+  ]
+}
