@@ -1,3 +1,5 @@
+import pytest
+
 from football_odds.cli.main import build_parser
 
 
@@ -21,3 +23,10 @@ def test_definitive_command_surface() -> None:
         "neural-lineup-model",
     ):
         assert removed not in help_text
+
+
+def test_reserved_commands_have_no_fake_arguments():
+    parser = build_parser()
+    assert parser.parse_args(["model", "predict"]).action == "predict"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["model", "predict", "--fixtures", "x.csv"])

@@ -1,6 +1,8 @@
 # Operations
 
 The public executable remains `odds-lab` during package migration.
+`model predict`, `strategy discover` and `strategy backtest` are reserved
+commands and currently fail fast without reading project data.
 
 ## Pipeline stages
 

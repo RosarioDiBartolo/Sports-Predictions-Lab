@@ -33,13 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--predictions", type=Path, required=True)
     evaluate.add_argument("--reference", type=Path, required=True)
     evaluate.add_argument("--output-dir", type=Path, required=True)
-    predict = model.add_parser("predict")
-    predict.add_argument("--fixtures", type=Path, required=True)
+    model.add_parser("predict", help="riservato; workflow non ancora disponibile")
     strategy = commands.add_parser("strategy").add_subparsers(
         dest="action", required=True
     )
-    strategy.add_parser("discover")
-    strategy.add_parser("backtest")
+    strategy.add_parser("discover", help="riservato; workflow non ancora disponibile")
+    strategy.add_parser("backtest", help="riservato; workflow non ancora disponibile")
     return parser
 
 
